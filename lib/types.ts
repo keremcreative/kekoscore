@@ -44,6 +44,9 @@ export interface MatchDetail extends Match {
   venue?: string;
   events: MatchEvent[];
   stats: MatchStat[];
+  lineups: Lineup[];
+  /** İki takımın birbirleriyle oynadığı son maçlar */
+  h2h: Match[];
 }
 
 export interface StandingRow {
@@ -56,4 +59,39 @@ export interface StandingRow {
   gd: number;
   points: number;
   note?: string;
+}
+
+export interface TeamInfo {
+  team: Team;
+  venue?: string;
+  standingSummary?: string;
+}
+
+export type PositionGroup = "G" | "D" | "M" | "F" | "?";
+
+export interface Player {
+  id: string;
+  name: string;
+  number?: string;
+  pos: PositionGroup;
+  posLabel?: string;
+  age?: number;
+  nationality?: string;
+}
+
+export interface LineupPlayer extends Player {
+  starter: boolean;
+  subbedIn?: boolean;
+  subbedOut?: boolean;
+}
+
+export interface Lineup {
+  side: "home" | "away";
+  formation?: string;
+  players: LineupPlayer[];
+}
+
+export interface TeamSchedule {
+  past: Match[];
+  upcoming: Match[];
 }

@@ -23,3 +23,16 @@ export const dayLabel = (d: Date) =>
 
 export const longDate = (iso: string) =>
   new Intl.DateTimeFormat("tr-TR", { timeZone: TZ, weekday: "long", day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+
+export const shortDate = (iso: string) =>
+  new Intl.DateTimeFormat("tr-TR", { timeZone: TZ, day: "numeric", month: "short" }).format(new Date(iso));
+
+export const fullDay = (d: Date) =>
+  new Intl.DateTimeFormat("tr-TR", { timeZone: TZ, weekday: "long", day: "numeric", month: "long" }).format(d);
+
+/** Verilen tarihin haftasının pazartesisi (İstanbul) */
+export function mondayOf(d: Date): Date {
+  const wd = new Intl.DateTimeFormat("en-US", { timeZone: TZ, weekday: "short" }).format(d);
+  const idx = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(wd);
+  return shiftDays(d, -Math.max(idx, 0));
+}
