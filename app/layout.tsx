@@ -3,9 +3,9 @@ import Link from "next/link";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Skor",
+  title: "kekoscore",
   description: "Reklamsız, sade canlı skor uygulaması",
-  appleWebApp: { capable: true, title: "Skor", statusBarStyle: "black-translucent" },
+  appleWebApp: { capable: true, title: "kekoscore", statusBarStyle: "default" },
 };
 
 export const viewport: Viewport = {
@@ -24,7 +24,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <header className="topbar">
           <Link href="/" className="brand">
-            <span className="brand-mark" aria-hidden>◐</span> skor
+            <span className="brand-mark" aria-hidden>◐</span> kekoscore
           </Link>
           <nav className="topnav">
             <Link href="/">Maçlar</Link>

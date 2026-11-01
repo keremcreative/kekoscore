@@ -1,4 +1,4 @@
-# skor
+# kekoscore
 
 Kişisel kullanım için reklamsız, takip kodsuz canlı skor uygulaması.
 
@@ -22,3 +22,10 @@ bir gün şekli değişirse yalnızca bu dosya düzeltilir. Başka bir kaynağa 
 (`scoreboard`, `matchDetail`, `standings`) yazan yeni bir dosya ekleyip `lib/data.ts`'de seçmek yeterli.
 
 Gösterilen ligler `lib/leagues.ts` içinde; ekle, çıkar, sırala.
+
+## Yayına alma ve iPhone'a kurma
+
+1. Bu depoyu GitHub'a gönder.
+2. [vercel.com/new](https://vercel.com/new) adresinde GitHub ile giriş yap, depoyu seç, **Deploy**'a bas (ayar gerekmez, ücretsiz Hobby planı yeterli).
+3. Çıkan adresi (ör. `kekoscore.vercel.app`) arkadaşlarına gönder.
+4. iPhone'da adresi **Safari** ile aç → Paylaş düğmesi → **Ana Ekrana Ekle**. Uygulama simgesiyle tam ekran açılır.
