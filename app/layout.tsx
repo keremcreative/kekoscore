@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
+import { Suspense } from "react";
+import { TabBar } from "@/components/TabBar";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,12 +28,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <Link href="/" className="brand">
             <span className="brand-mark" aria-hidden>◐</span> kekoscore
           </Link>
-          <nav className="topnav">
-            <Link href="/">Maçlar</Link>
-            <Link href="/lig">Ligler</Link>
-          </nav>
         </header>
         <main className="wrap">{children}</main>
+        <Suspense>
+          <TabBar />
+        </Suspense>
       </body>
     </html>
   );
