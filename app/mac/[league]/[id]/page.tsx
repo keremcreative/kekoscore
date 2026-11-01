@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { MatchRow } from "@/components/MatchRow";
+import { Poll } from "@/components/social/Poll";
 import { Tabs } from "@/components/Tabs";
 import { TeamLink } from "@/components/TeamLink";
 import { TeamLogo } from "@/components/TeamLogo";
@@ -86,6 +87,7 @@ export default async function MatchPage({
 
       {tab === "ozet" && (
         <>
+          <Poll matchId={`${code}:${m.id}`} state={m.state} home={m.home.team} away={m.away.team} />
           {m.events.length > 0 && (
             <section className="card">
               <div className="section-title">Olaylar</div>

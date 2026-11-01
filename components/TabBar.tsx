@@ -22,13 +22,21 @@ const TableIcon = () => (
   </svg>
 );
 
+const ChatIcon = () => (
+  <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8">
+    <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v8a2.5 2.5 0 0 1-2.5 2.5H10l-4.5 4v-4h0A2.5 2.5 0 0 1 4 13.5z" />
+    <path d="M8.5 8.5h7M8.5 11.5h4.5" />
+  </svg>
+);
+
 export function TabBar() {
   const path = usePathname();
   const live = useSearchParams().get("canli") === "1";
   const tabs = [
     { href: "/", label: "Maçlar", icon: <BallIcon />, on: (path === "/" && !live) || path.startsWith("/mac") },
     { href: "/?canli=1", label: "Canlı", icon: <LiveIcon />, on: path === "/" && live },
-    { href: "/lig", label: "Ligler", icon: <TableIcon />, on: path.startsWith("/lig") },
+    { href: "/lig", label: "Ligler", icon: <TableIcon />, on: path.startsWith("/lig") || path.startsWith("/takim") },
+    { href: "/sohbet", label: "Sohbet", icon: <ChatIcon />, on: path.startsWith("/sohbet") },
   ];
   return (
     <nav className="tabbar" aria-label="Ana menü">
