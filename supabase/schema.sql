@@ -90,6 +90,14 @@ create policy "kendi oyunu degistirir" on public.votes for update to authenticat
 
 grant execute on function public.username_taken(text) to anon, authenticated;
 
+-- Tablo yetkileri ("Automatically expose new tables" kapalı olsa da çalışsın diye açıkça veriliyor;
+-- asıl kısıtlamayı yukarıdaki satır güvenliği kuralları yapıyor)
+grant usage on schema public to anon, authenticated;
+grant select on public.profiles to authenticated;
+grant select, insert, delete on public.messages to authenticated;
+grant select, insert, update on public.votes to authenticated;
+revoke all on public.profiles, public.messages, public.votes from anon;
+
 -- Canlı sohbet ve anket için gerçek zamanlı yayın
 do $$
 begin
