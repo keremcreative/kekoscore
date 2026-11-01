@@ -54,3 +54,12 @@ Ayar yapılmazsa uygulama bu özellikler olmadan çalışmaya devam eder.
 
 Not: iPhone'da ana ekrana eklenmiş uygulamada Google girişi Safari'ye atıp geri dönmeyebilir;
 kullanıcı adı + şifre her yerde çalışır.
+
+### Sohbet bildirimleri (iPhone'da ana ekrana eklenmiş uygulama, iOS 16.4+)
+1. Supabase SQL Editor'de `supabase/push.sql` dosyasını bir kez çalıştır.
+2. Bildirim anahtarları üret: `npx web-push generate-vapid-keys`
+3. Vercel → Environment Variables:
+   - `NEXT_PUBLIC_VAPID_PUBLIC_KEY` = public key (Config)
+   - `VAPID_PRIVATE_KEY` = private key (**Secret**)
+   - `SUPABASE_SECRET_KEY` = Supabase → API Keys → secret key (**Secret**)
+4. Yeniden yayınla. Sohbet ekranında "Aç" ile her cihaz bir kez izin verir.

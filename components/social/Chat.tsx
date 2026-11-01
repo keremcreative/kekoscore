@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import { AuthForm } from "./AuthForm";
+import { PushToggle } from "./PushToggle";
 import { useSession, type Me } from "./useSession";
 
 interface Msg {
@@ -100,7 +101,21 @@ function Room({ me }: { me: Me }) {
       setText(body);
     } else if (data) {
       setMsgs((list) => (list.some((x) => x.id === data.id) ? list : [...list, data as Msg]));
+      notify(data.id);
     }
+  }
+
+  // Diğerlerine bildirim; başarısız olsa da sohbeti etkilemesin
+  async function notify(messageId: number) {
+    const { data } = await supabase().auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) return;
+    fetch("/api/notify", {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify({ messageId }),
+      keepalive: true,
+    }).catch(() => {});
   }
 
   async function remove(id: number) {
@@ -119,6 +134,7 @@ function Room({ me }: { me: Me }) {
           Çıkış
         </button>
       </div>
+      <PushToggle />
       {ready && msgs.length === 0 && <p className="empty">İlk mesajı sen yaz.</p>}
       <div className="msgs">
         {msgs.map((m, i) => {

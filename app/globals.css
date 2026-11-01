@@ -303,3 +303,9 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13px; font-vari
 .opt img { object-fit: contain; }
 .pct { font-weight: 800; font-variant-numeric: tabular-nums; }
 .opt:not(:has(.pct)) { justify-content: center; }
+
+/* Bildirim satırı */
+.push-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; padding: 10px 14px; margin-bottom: 8px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; }
+.push-row .form-error { flex-basis: 100%; }
+.push-hint { margin: 0 0 8px; padding: 10px 14px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.link-btn.strong { color: var(--accent); font-weight: 700; }
