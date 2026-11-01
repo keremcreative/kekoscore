@@ -95,3 +95,8 @@ export interface TeamSchedule {
   past: Match[];
   upcoming: Match[];
 }
+
+export interface LeagueLogo {
+  light?: string;
+  dark?: string;
+}

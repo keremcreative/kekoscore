@@ -19,6 +19,7 @@ import type {
   Team,
   TeamInfo,
   TeamSchedule,
+  LeagueLogo,
 } from "./types";
 
 const SITE = "https://site.api.espn.com/apis/site/v2/sports/soccer";
@@ -260,4 +261,15 @@ export async function roster(league: string, id: string): Promise<Player[]> {
   // Bazen pozisyona göre gruplu ({ position, items }) geliyor
   const flat = raw.flatMap((x) => (Array.isArray(x?.items) ? x.items : [x]));
   return flat.map((a) => player(a, a?.position));
+}
+
+/** Lig logoları (açık ve koyu tema), scoreboard yanıtının "leagues" alanından */
+export async function leagueLogo(league: string): Promise<LeagueLogo> {
+  const data = await get(`${SITE}/${league}/scoreboard`, 86400);
+  const logos: J[] = data?.leagues?.[0]?.logos ?? [];
+  const has = (l: J, r: string) => (l?.rel ?? []).includes(r);
+  return {
+    light: (logos.find((l) => has(l, "default")) ?? logos[0])?.href,
+    dark: (logos.find((l) => has(l, "dark")) ?? logos.find((l) => has(l, "default")) ?? logos[0])?.href,
+  };
 }

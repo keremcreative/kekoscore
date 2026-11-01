@@ -2,7 +2,7 @@
  * Ağ erişimi olmadan geliştirme için sahte veri (DATA_SOURCE=mock).
  * Bugünden 8 hafta öncesine ve 4 hafta sonrasına tutarlı bir sezon üretir.
  */
-import type { Lineup, Match, MatchDetail, Player, PositionGroup, StandingRow, Team, TeamInfo, TeamSchedule } from "./types";
+import type { LeagueLogo, Lineup, Match, MatchDetail, Player, PositionGroup, StandingRow, Team, TeamInfo, TeamSchedule } from "./types";
 import { shiftDays, ymd } from "./format";
 
 const T = (id: string, name: string, abbr: string): Team => ({ id, name, short: name, abbr });
@@ -166,4 +166,9 @@ export async function teamSchedule(league: string, id: string): Promise<TeamSche
 
 export async function roster(league: string, id: string): Promise<Player[]> {
   return squad(findTeam(league, id));
+}
+
+export async function leagueLogo(_league: string): Promise<LeagueLogo> {
+  void _league;
+  return {};
 }

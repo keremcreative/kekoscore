@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { MatchRow } from "@/components/MatchRow";
 import { StandingsTable } from "@/components/StandingsTable";
 import { Tabs } from "@/components/Tabs";
-import { getScoreboardRange, getStandings } from "@/lib/data";
+import { LeagueIcon } from "@/components/LeagueIcon";
+import { getLeagueLogo, getScoreboardRange, getStandings } from "@/lib/data";
 import { fullDay, mondayOf, shiftDays, shortDate, ymd } from "@/lib/format";
 import { leagueByCode } from "@/lib/leagues";
 import type { Match, StandingRow } from "@/lib/types";
@@ -28,12 +29,13 @@ export default async function LeaguePage({
   const league = leagueByCode(code);
   if (!league) notFound();
   const base = `/lig/${code}`;
+  const logo = await getLeagueLogo(code).catch(() => undefined);
 
   return (
     <>
       <Link href="/lig" className="back">‹ Ligler</Link>
-      <h1 className="page-title">
-        {league.flag} {league.name}
+      <h1 className="page-title with-logo">
+        <LeagueIcon league={league} logo={logo} size={34} /> {league.name}
       </h1>
       <Tabs items={TABS} current={tab} base={base} />
       {tab === "fikstur" ? <Fixtures code={code} week={Number(sp.hafta) || 0} /> : <Table code={code} />}
