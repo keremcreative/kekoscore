@@ -4,6 +4,7 @@ import { kickoff, shiftDays, ymd } from "@/lib/format";
 import { LEAGUES } from "@/lib/leagues";
 import type { Match } from "@/lib/types";
 import { TeamLogo } from "./TeamLogo";
+import { Marquee } from "./Marquee";
 
 export function liveLabel(m: Match) {
   if (/^HT$|half/i.test(m.detail)) return "DA";
@@ -31,7 +32,7 @@ export async function Ticker() {
   const matches = [...live, ...done, ...next].slice(0, 40);
   if (!matches.length) return null;
   return (
-    <div className="ticker" aria-label="Bugünün maçları">
+    <Marquee label="Maç bandı">
       {matches.map((m) => {
         const live = m.state === "in";
         return (
@@ -43,6 +44,6 @@ export async function Ticker() {
           </Link>
         );
       })}
-    </div>
+    </Marquee>
   );
 }

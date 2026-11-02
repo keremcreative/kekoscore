@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { Tabs } from "@/components/Tabs";
 import { Leaderboard } from "@/components/social/Leaderboard";
 import { PredictBoard, type BoardMatch } from "@/components/social/Predict";
@@ -18,6 +19,8 @@ export default async function PredictPage({ searchParams }: { searchParams: Prom
   await initTz();
   const tab = (await searchParams).sekme === "puan" ? "puan" : "maclar";
   let items: BoardMatch[] = [];
+  const openRaw = (await cookies()).get("tahmin-acik")?.value ?? "";
+  const openLeagues = decodeURIComponent(openRaw).split(",").filter(Boolean);
   if (tab === "maclar") {
     const now = new Date();
     const from = ymd(now), to = ymd(shiftDays(now, 6));
@@ -40,7 +43,7 @@ export default async function PredictPage({ searchParams }: { searchParams: Prom
     <>
       <h1 className="page-title">Tahmin</h1>
       <Tabs items={TABS} current={tab} base="/tahmin" />
-      {tab === "puan" ? <Leaderboard /> : <PredictBoard items={items} />}
+      {tab === "puan" ? <Leaderboard /> : <PredictBoard items={items} open={openLeagues} />}
     </>
   );
 }

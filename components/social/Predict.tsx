@@ -5,6 +5,7 @@ import { points } from "@/lib/predict";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import type { Match, MatchState, Team } from "@/lib/types";
 import { useSession } from "./useSession";
+import { LeagueSection } from "../LeagueSection";
 
 export interface Score {
   home: number;
@@ -149,7 +150,9 @@ export interface BoardMatch {
 }
 
 /** /tahmin sayfası: yaklaşan maçlar listesi, tek seferde kendi tahminlerini yükler */
-export function PredictBoard({ items }: { items: BoardMatch[] }) {
+export const OPEN_COOKIE = "tahmin-acik";
+
+export function PredictBoard({ items, open }: { items: BoardMatch[]; open: string[] }) {
   const { session, me, loading } = useSession();
   const [mine, setMine] = useState<Record<string, Score>>({});
   const ids = items.map((i) => i.match.id).join(",");
@@ -180,8 +183,15 @@ export function PredictBoard({ items }: { items: BoardMatch[] }) {
     <>
       <p className="pred-progress">{done}/{items.length} maça tahmin yaptın</p>
       {groups.map((g) => (
-        <section className="card pred-league" key={g.league}>
-          <div className="card-head">
+        <LeagueSection
+          key={g.league}
+          code={g.league}
+          cookie={OPEN_COOKIE}
+          storeOpen
+          headToggles
+          initiallyClosed={!open.includes(g.league)}
+          head={
+            <div className="card-head">
             {g.logo?.dark || g.logo?.light ? (
               <picture>
                 {g.logo.dark && <source srcSet={g.logo.dark} media="(prefers-color-scheme: dark)" />}
@@ -194,6 +204,8 @@ export function PredictBoard({ items }: { items: BoardMatch[] }) {
             <span>{g.name}</span>
             <span className="more">{g.list.filter((i) => mine[i.match.id]).length}/{g.list.length}</span>
           </div>
+          }
+        >
           {g.list.map((i) => {
             const m = i.match;
             return (
@@ -216,7 +228,7 @@ export function PredictBoard({ items }: { items: BoardMatch[] }) {
               </div>
             );
           })}
-        </section>
+        </LeagueSection>
       ))}
     </>
   );
