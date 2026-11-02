@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
+import { clientTz } from "@/lib/tzClient";
 import { AuthForm } from "./AuthForm";
 import { PushToggle } from "./PushToggle";
 import { useSession, type Me } from "./useSession";
@@ -14,9 +15,9 @@ interface Msg {
 
 const ROOM = "genel";
 const time = (iso: string) =>
-  new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
+  new Intl.DateTimeFormat("tr-TR", { timeZone: clientTz(), hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 const day = (iso: string) =>
-  new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", day: "numeric", month: "long", weekday: "long" }).format(new Date(iso));
+  new Intl.DateTimeFormat("tr-TR", { timeZone: clientTz(), day: "numeric", month: "long", weekday: "long" }).format(new Date(iso));
 
 export function Chat() {
   const { me, session, loading } = useSession();

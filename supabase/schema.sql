@@ -111,3 +111,4 @@ exception when duplicate_object then null;
 end $$;
 
 -- Bildirim abonelikleri: supabase/push.sql dosyasındaki tabloyu da çalıştır.
+-- Favoriler ve tahmin oyunu: supabase/extra.sql dosyasını da çalıştır.

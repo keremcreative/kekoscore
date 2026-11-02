@@ -1,7 +1,9 @@
+import { initTz } from "@/lib/tz";
 import Link from "next/link";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { MatchRow } from "@/components/MatchRow";
 import { Poll } from "@/components/social/Poll";
+import { PredictionCard } from "@/components/social/Predict";
 import { Tabs } from "@/components/Tabs";
 import { TeamLink } from "@/components/TeamLink";
 import { TeamLogo } from "@/components/TeamLogo";
@@ -40,6 +42,7 @@ export default async function MatchPage({
   params: Promise<{ league: string; id: string }>;
   searchParams: Promise<{ sekme?: string }>;
 }) {
+  await initTz();
   const { league: code, id } = await params;
   const tab = (await searchParams).sekme ?? "ozet";
   // Kupa maçları gibi listede olmayan turnuvalar da açılabilsin
@@ -87,6 +90,7 @@ export default async function MatchPage({
 
       {tab === "ozet" && (
         <>
+          <PredictionCard league={code} matchId={m.id} state={m.state} home={m.home.team} away={m.away.team} score={{ home: m.home.score, away: m.away.score }} />
           <Poll matchId={`${code}:${m.id}`} state={m.state} home={m.home.team} away={m.away.team} />
           {m.events.length > 0 && (
             <section className="card">
@@ -161,14 +165,19 @@ function HeroTeam({ m, side, league }: { m: MatchDetail; side: "home" | "away"; 
   );
 }
 
-function PlayerLine({ p }: { p: LineupPlayer }) {
-  return (
-    <div className="lp">
+function PlayerLine({ p, league }: { p: LineupPlayer; league: string }) {
+  const body = (
+    <>
       <span className="num">{p.number ?? ""}</span>
       <span className="pname">{p.name}</span>
       {p.subbedOut && <span className="sub-out" title="Oyundan çıktı">↓</span>}
       {p.subbedIn && <span className="sub-in" title="Oyuna girdi">↑</span>}
-    </div>
+    </>
+  );
+  return p.id ? (
+    <Link className="lp" href={`/oyuncu/${league}/${p.id}`}>{body}</Link>
+  ) : (
+    <div className="lp">{body}</div>
   );
 }
 
@@ -189,7 +198,7 @@ function Lineups({ m }: { m: MatchDetail }) {
         <div className="section-title">İlk 11</div>
         <div className="lineup">
           {sides.map((l, i) => (
-            <div key={i}>{starters(l).map((p) => <PlayerLine key={p.id + p.name} p={p} />)}</div>
+            <div key={i}>{starters(l).map((p) => <PlayerLine key={p.id + p.name} p={p} league={m.league} />)}</div>
           ))}
         </div>
         {(bench(sides[0]).length > 0 || bench(sides[1]).length > 0) && (
@@ -197,7 +206,7 @@ function Lineups({ m }: { m: MatchDetail }) {
             <div className="section-title">Yedekler</div>
             <div className="lineup">
               {sides.map((l, i) => (
-                <div key={i}>{bench(l).map((p) => <PlayerLine key={p.id + p.name} p={p} />)}</div>
+                <div key={i}>{bench(l).map((p) => <PlayerLine key={p.id + p.name} p={p} league={m.league} />)}</div>
               ))}
             </div>
           </>
