@@ -1,3 +1,5 @@
+import { FavButton } from "@/components/social/FavButton";
+import { initTz } from "@/lib/tz";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MatchRow } from "@/components/MatchRow";
@@ -23,6 +25,7 @@ export default async function LeaguePage({
   params: Promise<{ league: string }>;
   searchParams: Promise<{ sekme?: string; hafta?: string }>;
 }) {
+  await initTz();
   const { league: code } = await params;
   const sp = await searchParams;
   const tab = sp.sekme ?? "puan";
@@ -36,6 +39,7 @@ export default async function LeaguePage({
       <Link href="/lig" className="back">‹ Ligler</Link>
       <h1 className="page-title with-logo">
         <LeagueIcon league={league} logo={logo} size={34} /> {league.name}
+        <FavButton kind="league" refId={code} />
       </h1>
       <Tabs items={TABS} current={tab} base={base} />
       {tab === "fikstur" ? <Fixtures code={code} week={Number(sp.hafta) || 0} /> : <Table code={code} />}

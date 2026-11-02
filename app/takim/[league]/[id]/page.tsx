@@ -1,4 +1,6 @@
+import { initTz } from "@/lib/tz";
 import Link from "next/link";
+import { FavButton } from "@/components/social/FavButton";
 import { notFound } from "next/navigation";
 import { Form } from "@/components/Form";
 import { MatchRow } from "@/components/MatchRow";
@@ -36,6 +38,7 @@ export default async function TeamPage({
   params: Promise<{ league: string; id: string }>;
   searchParams: Promise<{ sekme?: string }>;
 }) {
+  await initTz();
   const { league: code, id } = await params;
   const tab = (await searchParams).sekme ?? "maclar";
   const league = leagueByCode(code);
@@ -76,6 +79,7 @@ export default async function TeamPage({
           </div>
           {stats.form.length > 0 && <Form results={stats.form} />}
         </div>
+        <FavButton kind="team" refId={`${code}/${team.id}`} />
       </section>
 
       <Tabs items={TABS} current={tab} base={base} />
@@ -169,14 +173,14 @@ export default async function TeamPage({
               <section className="card" key={pos}>
                 <div className="section-title">{label}</div>
                 {ps.map((p) => (
-                  <div className="player" key={p.id || p.name}>
+                  <Link className="player" key={p.id || p.name} href={`/oyuncu/${code}/${p.id}`}>
                     <span className="num">{p.number ?? ""}</span>
                     <span className="pname">
                       {p.name}
                       {p.nationality && <small>{p.nationality}</small>}
                     </span>
                     {p.age !== undefined && <span className="age">{p.age} yaş</span>}
-                  </div>
+                  </Link>
                 ))}
               </section>
             );

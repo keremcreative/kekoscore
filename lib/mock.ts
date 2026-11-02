@@ -172,3 +172,27 @@ export async function leagueLogo(_league: string): Promise<LeagueLogo> {
   void _league;
   return {};
 }
+
+export async function playerProfile(league: string, id: string): Promise<import("./types").PlayerProfile> {
+  const teamId = id.split("-")[0];
+  const t = findTeam(league, teamId);
+  const p = squad(t).find((x) => x.id === id);
+  if (!p) throw new Error("Oyuncu bulunamadı");
+  const r = rng("pl" + id);
+  const n = (k: number) => String(Math.floor(r() * k));
+  const g = p.pos === "F" ? n(12) : p.pos === "M" ? n(5) : "0";
+  return {
+    id, league, name: p.name, number: p.number, position: { G: "Kaleci", D: "Defans", M: "Orta saha", F: "Forvet", "?": "" }[p.pos],
+    pos: p.pos, age: p.age, birth: `12/3/${2026 - (p.age ?? 25)}`, height: `${170 + Math.floor(r() * 25)} cm`, weight: `${65 + Math.floor(r() * 20)} kg`,
+    nationality: p.nationality, team: t,
+    summary: [["Maç", "10"], ["Gol", g], ["Asist", n(5)], ["Şut", n(30)]],
+    stats: {
+      labels: ["STRT", "FC", "FA", "YC", "RC", "G", "A", "SHOT", "SOG", "OFF"],
+      names: ["starts", "foulsCommitted", "foulsSuffered", "yellowCards", "redCards", "totalGoals", "goalAssists", "totalShots", "shotsOnTarget", "offsides"],
+      splits: [
+        { name: "2026-27 Lig", teamId: t.id, league, stats: ["10", n(12), n(12), n(4), "0", g, n(5), n(30), n(15), n(4)] },
+        { name: "2025-26 Lig", teamId: t.id, league, stats: ["31", n(30), n(30), n(8), n(2), String(Number(g) * 3), n(9), n(80), n(40), n(9)] },
+      ],
+    },
+  };
+}

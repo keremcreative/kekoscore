@@ -100,3 +100,30 @@ export interface LeagueLogo {
   light?: string;
   dark?: string;
 }
+
+export interface PlayerStatSplit {
+  name: string; // ör. "2026-27 English Premier League"
+  teamId?: string;
+  league?: string;
+  stats: string[];
+}
+
+export interface PlayerProfile {
+  id: string;
+  league: string;
+  name: string;
+  number?: string;
+  position?: string;
+  pos: PositionGroup;
+  age?: number;
+  birth?: string;
+  height?: string;
+  weight?: string;
+  nationality?: string;
+  flag?: string;
+  photo?: string;
+  team?: Team;
+  /** Sezon özeti: ör. [["Maç", "9"], ["Gol", "9"]] */
+  summary: [string, string][];
+  stats: { labels: string[]; names: string[]; splits: PlayerStatSplit[] };
+}

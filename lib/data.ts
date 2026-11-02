@@ -14,6 +14,7 @@ export const getTeamInfo = source.teamInfo;
 export const getTeamSchedule = source.teamSchedule;
 export const getRoster = source.roster;
 export const getLeagueLogo = source.leagueLogo;
+export const getPlayer = source.playerProfile;
 
 /** Tüm liglerin logoları; biri alınamazsa o lig bayrakla gösterilir */
 export async function getLeagueLogos(): Promise<Record<string, LeagueLogo>> {

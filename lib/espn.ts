@@ -273,3 +273,54 @@ export async function leagueLogo(league: string): Promise<LeagueLogo> {
     dark: (logos.find((l) => has(l, "dark")) ?? logos.find((l) => has(l, "default")) ?? logos[0])?.href,
   };
 }
+
+const ATH = "https://site.web.api.espn.com/apis/common/v3/sports/soccer";
+
+/** Fit/inç ve libre değerlerini metrik birime çevir */
+function metric(height?: string, weight?: string) {
+  const h = height?.match(/(\d+)'\s*(\d+)?/);
+  const w = weight?.match(/([\d.]+)\s*lbs/);
+  return {
+    height: h ? `${Math.round((Number(h[1]) * 12 + Number(h[2] ?? 0)) * 2.54)} cm` : height,
+    weight: w ? `${Math.round(Number(w[1]) * 0.4536)} kg` : weight,
+  };
+}
+
+export async function playerProfile(league: string, id: string): Promise<import("./types").PlayerProfile> {
+  const [bioR, ovR] = await Promise.allSettled([
+    get(`${ATH}/${league}/athletes/${id}`, 3600),
+    get(`${ATH}/${league}/athletes/${id}/overview`, 600),
+  ]);
+  if (bioR.status === "rejected") throw bioR.reason;
+  const a: J = bioR.value?.athlete ?? {};
+  const ov: J = ovR.status === "fulfilled" ? ovR.value : {};
+  const st: J = ov?.statistics ?? {};
+  const { height, weight } = metric(a?.displayHeight, a?.displayWeight);
+  return {
+    id: String(a?.id ?? id),
+    league,
+    name: a?.displayName ?? a?.fullName ?? "?",
+    number: a?.jersey,
+    position: a?.position?.displayName,
+    pos: posGroup(a?.position),
+    age: num(a?.age),
+    birth: a?.displayDOB,
+    height,
+    weight,
+    nationality: a?.citizenship,
+    flag: a?.flag?.href,
+    photo: a?.headshot?.href ?? `https://a.espncdn.com/i/headshots/soccer/players/full/${id}.png`,
+    team: a?.team ? team(a.team) : undefined,
+    summary: (a?.statsSummary?.statistics ?? []).map((s: J) => [s?.shortDisplayName ?? s?.displayName ?? s?.name, s?.displayValue ?? "-"]),
+    stats: {
+      labels: st?.labels ?? [],
+      names: st?.names ?? [],
+      splits: (st?.splits ?? []).map((s: J) => ({
+        name: s?.displayName ?? "",
+        teamId: s?.teamId ? String(s.teamId) : undefined,
+        league: s?.leagueSlug,
+        stats: (s?.stats ?? []).map(String),
+      })),
+    },
+  };
+}

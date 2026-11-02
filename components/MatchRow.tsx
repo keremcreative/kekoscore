@@ -6,7 +6,7 @@ import { ResultBadge } from "./Form";
 import { TeamLogo } from "./TeamLogo";
 
 function statusLabel(m: Match) {
-  if (m.state === "in") return m.clock || m.detail || "Canlı";
+  if (m.state === "in") return /^HT$|half/i.test(m.detail) ? "DA" : m.clock || m.detail || "Canlı";
   if (m.state === "post") return /pen|aet|uzt/i.test(m.detail) ? m.detail : "MS";
   if (/postp|ertel|cancel|iptal/i.test(m.detail)) return "Ertelendi";
   return kickoff(m.date);
