@@ -5,7 +5,7 @@ import { DateNav } from "@/components/DateNav";
 import { LeagueIcon } from "@/components/LeagueIcon";
 import { LiveHero, type Featured } from "@/components/LiveHero";
 import { MatchRow } from "@/components/MatchRow";
-import { dataSourceName, getLeagueLogos, getScoreboard } from "@/lib/data";
+import { getLeagueLogos, getScoreboard } from "@/lib/data";
 import { parseYmd, ymd } from "@/lib/format";
 import { LEAGUES } from "@/lib/leagues";
 import { serverFavs } from "@/lib/favsServer";
@@ -104,7 +104,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
           ))}
         </LeagueSection>
       ))}
-      <p className="foot">Veri: {dataSourceName} · Reklam yok, takip yok.</p>
+      <p className="foot">Kerem'in Hayratıdır · Reklam yok, Pop-up yok</p>
     </>
   );
 }
