@@ -1,10 +1,11 @@
 import Link from "next/link";
-import { dayLabel, shiftDays, ymd } from "@/lib/format";
+import { dayLabel, parseYmd, shiftDays, ymd } from "@/lib/format";
 
 export function DateNav({ selected, liveOnly }: { selected: Date; liveOnly: boolean }) {
   const today = ymd(new Date());
   const sel = ymd(selected);
-  const days = [-1, 0, 1, 2, 3].map((n) => shiftDays(selected, n));
+  const base = parseYmd(sel); // gün ortası: her saat diliminde aynı tarih etiketi
+  const days = [-1, 0, 1, 2, 3].map((n) => shiftDays(base, n));
   return (
     <nav className="datenav" aria-label="Tarih">
       <Link href={liveOnly ? (sel === today ? "/" : `/?d=${sel}`) : `/?d=${sel}&canli=1`} className={`live-toggle${liveOnly ? " on" : ""}`}>
