@@ -19,6 +19,14 @@ const time = (iso: string) =>
 const day = (iso: string) =>
   new Intl.DateTimeFormat("tr-TR", { timeZone: clientTz(), day: "numeric", month: "long", weekday: "long" }).format(new Date(iso));
 
+function readStored(key: string): number {
+  try {
+    return Number(localStorage.getItem(key)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 export function Chat() {
   const { me, session, loading } = useSession();
   if (!supabaseConfigured) return <SetupNotice />;
@@ -42,9 +50,16 @@ function Room({ me }: { me: Me }) {
   const [text, setText] = useState("");
   const [error, setError] = useState("");
   const [ready, setReady] = useState(false);
-  const bottom = useRef<HTMLDivElement>(null);
+  const [firstUnread, setFirstUnread] = useState<number | null>(null);
+  const [newBelow, setNewBelow] = useState(0);
+  const atBottom = useRef(true);
+  const userMoved = useRef(false);
+  const readKey = `kk-chat-read:${me.id}`;
+  const lastRead = useRef<number>(readStored(readKey));
   const namesRef = useRef(names);
   namesRef.current = names;
+  const msgsRef = useRef(msgs);
+  msgsRef.current = msgs;
 
   const loadNames = useCallback(async (ids: string[]) => {
     const missing = [...new Set(ids)].filter((id) => !namesRef.current[id]);
@@ -65,6 +80,10 @@ function Room({ me }: { me: Me }) {
         if (!alive) return;
         if (error) setError("Mesajlar yüklenemedi.");
         const list = ((data ?? []) as Msg[]).reverse();
+        const lr = lastRead.current;
+        // İlk kez açanlar için her şey okunmuş sayılır; sonra en alttan başlar
+        const unread = lr > 0 ? list.find((m) => m.id > lr && m.user_id !== me.id) : undefined;
+        setFirstUnread(unread?.id ?? null);
         setMsgs(list);
         loadNames(list.map((m) => m.user_id));
         setReady(true);
@@ -84,11 +103,77 @@ function Room({ me }: { me: Me }) {
       alive = false;
       sb.removeChannel(ch);
     };
-  }, [loadNames]);
+  }, [loadNames, me.id]);
 
+  const markRead = useCallback(() => {
+    const last = msgsRef.current[msgsRef.current.length - 1];
+    if (last && last.id > lastRead.current) {
+      lastRead.current = last.id;
+      try {
+        localStorage.setItem(readKey, String(last.id));
+      } catch {}
+    }
+  }, [readKey]);
+
+  // Kaydırma durumunu izle: en alttaysak okundu say, kullanıcı elle kaydırdıysa açılış konumlandırmasını bırak
+  useEffect(() => {
+    const onScroll = () => {
+      atBottom.current = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 140;
+      if (atBottom.current) {
+        setNewBelow(0);
+        if (ready) markRead();
+      }
+    };
+    const moved = () => (userMoved.current = true);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("touchstart", moved, { passive: true });
+    window.addEventListener("wheel", moved, { passive: true });
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("touchstart", moved);
+      window.removeEventListener("wheel", moved);
+    };
+  }, [ready, markRead]);
+
+  // Açılış: okunmamış varsa ilk okunmamışa, yoksa en alta. İsimler/görseller yüklenip
+  // sayfa uzadıkça birkaç kez yeniden konumla (kullanıcı dokunana kadar).
   useLayoutEffect(() => {
-    bottom.current?.scrollIntoView({ block: "end" });
-  }, [msgs.length, ready]);
+    if (!ready) return;
+    const place = () => {
+      if (userMoved.current) return;
+      const el = firstUnread !== null ? document.getElementById("okunmamis") : null;
+      if (el) {
+        const top = document.querySelector(".topbar")?.getBoundingClientRect().height ?? 0;
+        window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - top - 12);
+      } else {
+        window.scrollTo(0, document.documentElement.scrollHeight);
+        markRead();
+      }
+    };
+    place();
+    const timers = [50, 200, 500, 1000].map((t) => setTimeout(place, t));
+    return () => timers.forEach(clearTimeout);
+  }, [ready, firstUnread, markRead]);
+
+  // Yeni mesaj gelince: en alttaysak aşağı kaydır, değilsek "yeni mesaj" düğmesi göster
+  const prevLen = useRef(0);
+  useLayoutEffect(() => {
+    const added = msgs.length - prevLen.current;
+    prevLen.current = msgs.length;
+    if (!ready || added <= 0 || added === msgs.length) return;
+    const last = msgs[msgs.length - 1];
+    if (atBottom.current || last.user_id === me.id) {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+      markRead();
+    } else {
+      setNewBelow((n) => n + added);
+    }
+  }, [msgs, ready, me.id, markRead]);
+
+  function jumpDown() {
+    setNewBelow(0);
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+  }
 
   async function send(e: React.FormEvent) {
     e.preventDefault();
@@ -146,6 +231,11 @@ function Room({ me }: { me: Me }) {
           return (
             <div key={m.id}>
               {newDay && <div className="day-sep">{day(m.created_at)}</div>}
+              {m.id === firstUnread && (
+                <div className="unread-sep" id="okunmamis">
+                  <span>Okunmamış mesajlar</span>
+                </div>
+              )}
               <div className={`msg${mine ? " mine" : ""}${sameAuthor ? " cont" : ""}`}>
                 {!mine && !sameAuthor && <span className="who">{names[m.user_id] ?? "…"}</span>}
                 <div className="bubble" onDoubleClick={mine ? () => remove(m.id) : undefined}>
@@ -156,8 +246,12 @@ function Room({ me }: { me: Me }) {
             </div>
           );
         })}
-        <div ref={bottom} />
       </div>
+      {newBelow > 0 && (
+        <button className="new-below" onClick={jumpDown}>
+          ↓ {newBelow} yeni mesaj
+        </button>
+      )}
       {error && <p className="form-error">{error}</p>}
       <form className="composer" onSubmit={send}>
         <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Mesaj yaz…" maxLength={1000} enterKeyHint="send" />
