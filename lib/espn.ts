@@ -87,7 +87,22 @@ export async function scoreboard(league: string, yyyymmdd: string): Promise<Matc
 
 /** Tarih aralığındaki maçlar (YYYYMMDD-YYYYMMDD) */
 export async function scoreboardRange(league: string, from: string, to: string): Promise<Match[]> {
-  return events(await get(`${SITE}/${league}/scoreboard?dates=${from}-${to}&limit=200`, 60), league);
+  try {
+    return events(await get(`${SITE}/${league}/scoreboard?dates=${from}-${to}&limit=200`, 60), league);
+  } catch (e) {
+    // Aralık sorgusu reddedilirse günleri tek tek çek
+    const days: string[] = [];
+    const d = new Date(`${from.slice(0, 4)}-${from.slice(4, 6)}-${from.slice(6, 8)}T12:00:00Z`);
+    const end = `${to.slice(0, 4)}-${to.slice(4, 6)}-${to.slice(6, 8)}`;
+    while (d.toISOString().slice(0, 10) <= end && days.length < 15) {
+      days.push(d.toISOString().slice(0, 10).replace(/-/g, ""));
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+    const rs = await Promise.allSettled(days.map((x) => scoreboard(league, x)));
+    if (rs.every((r) => r.status === "rejected")) throw e;
+    const seen = new Set<string>();
+    return rs.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter((m) => !seen.has(m.id) && !!seen.add(m.id));
+  }
 }
 
 function kindOf(e: J): EventKind {

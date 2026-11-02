@@ -36,7 +36,7 @@ function Stepper({ value, onChange, disabled }: { value: number; onChange: (n: n
 }
 
 /** Tek maç için tahmin girişi (kaydedilen tahmin + düzenleme) */
-function PredictInput({ league, matchId, saved, onSaved }: { league: string; matchId: string; saved?: Score; onSaved: (s: Score) => void }) {
+function PredictInput({ league, matchId, saved, onSaved, compact }: { league: string; matchId: string; saved?: Score; onSaved: (s: Score) => void; compact?: boolean }) {
   const [v, setV] = useState<Score>(saved ?? { home: 0, away: 0 });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -53,12 +53,12 @@ function PredictInput({ league, matchId, saved, onSaved }: { league: string; mat
     else onSaved(v);
   }
   return (
-    <div className="pred-input">
+    <div className={`pred-input${compact ? " compact" : ""}`}>
       <Stepper value={v.home} onChange={(home) => setV({ ...v, home })} disabled={busy} />
       <span className="pred-dash">–</span>
       <Stepper value={v.away} onChange={(away) => setV({ ...v, away })} disabled={busy} />
       <button type="button" className={`pred-save${dirty ? "" : " done"}`} onClick={submit} disabled={busy || !dirty}>
-        {busy ? "…" : dirty ? (saved ? "Güncelle" : "Kaydet") : "✓"}
+        {busy ? "…" : dirty ? (compact ? "✓" : saved ? "Güncelle" : "Kaydet") : "✓"}
       </button>
       {err && <span className="pred-err">{err}</span>}
     </div>
@@ -141,6 +141,8 @@ function PredictionCardInner({ league, matchId, state, home, away, score }: { le
 export interface BoardMatch {
   league: string;
   leagueName: string;
+  flag: string;
+  logo?: { light?: string; dark?: string };
   day: string;
   time: string;
   match: Match;
@@ -167,38 +169,55 @@ export function PredictBoard({ items }: { items: BoardMatch[] }) {
   if (!session) return <Link href="/sohbet" className="btn primary">Tahmin yapmak için giriş yap</Link>;
   if (!items.length) return <div className="card empty">Önümüzdeki günlerde tahmin yapılacak maç yok.</div>;
 
-  let lastDay = "";
   const done = items.filter((i) => mine[i.match.id]).length;
+  const groups: { league: string; name: string; flag: string; logo?: BoardMatch["logo"]; list: BoardMatch[] }[] = [];
+  for (const i of items) {
+    let g = groups.find((x) => x.league === i.league);
+    if (!g) groups.push((g = { league: i.league, name: i.leagueName, flag: i.flag, logo: i.logo, list: [] }));
+    g.list.push(i);
+  }
   return (
     <>
       <p className="pred-progress">{done}/{items.length} maça tahmin yaptın</p>
-      {items.map((i) => {
-        const head = i.day !== lastDay ? i.day : null;
-        lastDay = i.day;
-        const m = i.match;
-        return (
-          <div key={m.id}>
-            {head && <div className="section-title day-title">{head}</div>}
-            <section className="card pred-item">
-              <Link href={`/mac/${i.league}/${m.id}`} className="pred-meta">{i.time} · {i.leagueName}</Link>
-              <div className="pred-teams">
-                <span className="pred-team">
+      {groups.map((g) => (
+        <section className="card pred-league" key={g.league}>
+          <div className="card-head">
+            {g.logo?.dark || g.logo?.light ? (
+              <picture>
+                {g.logo.dark && <source srcSet={g.logo.dark} media="(prefers-color-scheme: dark)" />}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={g.logo.light ?? g.logo.dark} alt="" width={20} height={20} />
+              </picture>
+            ) : (
+              <span>{g.flag}</span>
+            )}
+            <span>{g.name}</span>
+            <span className="more">{g.list.filter((i) => mine[i.match.id]).length}/{g.list.length}</span>
+          </div>
+          {g.list.map((i) => {
+            const m = i.match;
+            return (
+              <div className={`pline${mine[m.id] ? " done" : ""}`} key={m.id}>
+                <Link href={`/mac/${i.league}/${m.id}`} className="pline-time">
+                  <small>{i.day}</small>
+                  {i.time}
+                </Link>
+                <span className="pline-team" title={m.home.team.name}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {m.home.team.logo && <img src={m.home.team.logo} alt="" width={22} height={22} />}
-                  {m.home.team.short}
+                  <b>{m.home.team.abbr || m.home.team.short.slice(0, 3)}</b>
                 </span>
-                <span className="pred-vs">vs</span>
-                <span className="pred-team r">
-                  {m.away.team.short}
+                <PredictInput compact league={i.league} matchId={m.id} saved={mine[m.id]} onSaved={(s) => setMine((x) => ({ ...x, [m.id]: s }))} />
+                <span className="pline-team r" title={m.away.team.name}>
+                  <b>{m.away.team.abbr || m.away.team.short.slice(0, 3)}</b>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   {m.away.team.logo && <img src={m.away.team.logo} alt="" width={22} height={22} />}
                 </span>
               </div>
-              <PredictInput league={i.league} matchId={m.id} saved={mine[m.id]} onSaved={(s) => setMine((x) => ({ ...x, [m.id]: s }))} />
-            </section>
-          </div>
-        );
-      })}
+            );
+          })}
+        </section>
+      ))}
     </>
   );
 }

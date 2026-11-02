@@ -1,8 +1,8 @@
 import { Tabs } from "@/components/Tabs";
 import { Leaderboard } from "@/components/social/Leaderboard";
 import { PredictBoard, type BoardMatch } from "@/components/social/Predict";
-import { getScoreboardRange } from "@/lib/data";
-import { fullDay, kickoff, shiftDays, ymd } from "@/lib/format";
+import { getLeagueLogos, getScoreboardRange } from "@/lib/data";
+import { kickoff, shiftDays, shortDate, ymd } from "@/lib/format";
 import { LEAGUES } from "@/lib/leagues";
 import { initTz } from "@/lib/tz";
 
@@ -20,17 +20,21 @@ export default async function PredictPage({ searchParams }: { searchParams: Prom
   let items: BoardMatch[] = [];
   if (tab === "maclar") {
     const now = new Date();
-    const from = ymd(now), to = ymd(shiftDays(now, 3));
-    const rs = await Promise.allSettled(LEAGUES.map((l) => getScoreboardRange(l.code, from, to)));
+    const from = ymd(now), to = ymd(shiftDays(now, 6));
+    const [rs, logos] = await Promise.all([Promise.allSettled(LEAGUES.map((l) => getScoreboardRange(l.code, from, to))), getLeagueLogos()]);
     items = LEAGUES.flatMap((l, i) => {
       const r = rs[i];
       return r.status === "fulfilled"
-        ? r.value.filter((m) => m.state === "pre" && new Date(m.date) > now && !/postp|ertel|cancel/i.test(m.detail)).map((match) => ({ league: l.code, leagueName: l.name, match }))
+        ? r.value.filter((m) => m.state === "pre" && new Date(m.date) > now && !/postp|ertel|cancel/i.test(m.detail)).map((match) => ({ league: l.code, leagueName: l.name, flag: l.flag, logo: logos[l.code], match }))
         : [];
     })
       .sort((a, b) => a.match.date.localeCompare(b.match.date))
-      .slice(0, 40)
-      .map((x) => ({ ...x, day: fullDay(new Date(x.match.date)), time: kickoff(x.match.date) }));
+      .slice(0, 120)
+      .map((x) => {
+        const d = ymd(new Date(x.match.date));
+        const day = d === from ? "Bugün" : d === ymd(shiftDays(now, 1)) ? "Yarın" : shortDate(x.match.date);
+        return { ...x, day, time: kickoff(x.match.date) };
+      });
   }
   return (
     <>
