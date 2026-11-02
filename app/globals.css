@@ -402,3 +402,6 @@ a.player:hover, a.lp:hover { background: var(--surface-2); }
 .pred-team { white-space: normal; overflow: visible; }
 .pred-vs { font-size: 11px; color: var(--muted); font-weight: 700; text-transform: uppercase; }
 .table.lb td.team-col, .table.lb th.team-col { text-align: left; }
+.unread-sep { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--live); }
+.unread-sep::before, .unread-sep::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--live) 50%, transparent); }
+.new-below { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(140px + env(safe-area-inset-bottom)); z-index: 25; border: 0; border-radius: 999px; padding: 8px 14px; background: var(--accent-bg); color: #16181c; font: inherit; font-weight: 800; font-size: 13px; box-shadow: 0 4px 14px rgb(0 0 0 / .3); cursor: pointer; }
