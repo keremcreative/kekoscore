@@ -1,8 +1,14 @@
 import { currentTz } from "./tz";
 
-/** Seçili saat dilimine göre YYYYMMDD */
+/**
+ * Gün hesabı her iki modda da Türkiye takvimine göre yapılır ki "Bugün" ve maç
+ * listeleri aynı kalsın; yalnızca gösterilen saatler seçili saat dilimine göre değişir.
+ */
+const DAY_TZ = "Europe/Istanbul";
+
+/** Türkiye takvimine göre YYYYMMDD */
 export function ymd(d: Date): string {
-  const p = new Intl.DateTimeFormat("en-CA", { timeZone: currentTz(), year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const p = new Intl.DateTimeFormat("en-CA", { timeZone: DAY_TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
   return p.replace(/-/g, "");
 }
 
@@ -30,9 +36,9 @@ export const shortDate = (iso: string) =>
 export const fullDay = (d: Date) =>
   new Intl.DateTimeFormat("tr-TR", { timeZone: currentTz(), weekday: "long", day: "numeric", month: "long" }).format(d);
 
-/** Verilen tarihin haftasının pazartesisi (seçili saat dilimi) */
+/** Verilen tarihin haftasının pazartesisi (Türkiye takvimi) */
 export function mondayOf(d: Date): Date {
-  const wd = new Intl.DateTimeFormat("en-US", { timeZone: currentTz(), weekday: "short" }).format(d);
+  const wd = new Intl.DateTimeFormat("en-US", { timeZone: DAY_TZ, weekday: "short" }).format(d);
   const idx = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].indexOf(wd);
   return shiftDays(d, -Math.max(idx, 0));
 }

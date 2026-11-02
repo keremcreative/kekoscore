@@ -405,3 +405,17 @@ a.player:hover, a.lp:hover { background: var(--surface-2); }
 .unread-sep { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--live); }
 .unread-sep::before, .unread-sep::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--live) 50%, transparent); }
 .new-below { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(140px + env(safe-area-inset-bottom)); z-index: 25; border: 0; border-radius: 999px; padding: 8px 14px; background: var(--accent-bg); color: #16181c; font: inherit; font-weight: 800; font-size: 13px; box-shadow: 0 4px 14px rgb(0 0 0 / .3); cursor: pointer; }
+
+/* Aç/kapa lig kartları */
+.ls-head { display: flex; align-items: stretch; border-bottom: 1px solid var(--line); transition: border-color .3s; }
+.ls-head .card-head { flex: 1; min-width: 0; border-bottom: 0; padding-left: 4px; }
+.ls-toggle { flex: none; width: 40px; display: grid; place-items: center; border: 0; background: none; color: var(--muted); cursor: pointer; padding: 0 0 0 6px; }
+.ls-toggle svg { transition: transform .3s ease; }
+.league-sec.closed .ls-toggle svg { transform: rotate(-90deg); }
+.league-sec.closed .ls-head { border-bottom-color: transparent; }
+.ls-body { display: grid; grid-template-rows: 1fr; transition: grid-template-rows .32s ease; }
+.league-sec.closed .ls-body { grid-template-rows: 0fr; }
+.ls-inner { overflow: hidden; min-height: 0; }
+.ls-inner > .match:first-child { border-top: 0; }
+.card-head .count { display: none; }
+.league-sec.closed .card-head .count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--surface-2); color: var(--muted); font-size: 11px; }

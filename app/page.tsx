@@ -9,6 +9,9 @@ import { dataSourceName, getLeagueLogos, getScoreboard } from "@/lib/data";
 import { parseYmd, ymd } from "@/lib/format";
 import { LEAGUES } from "@/lib/leagues";
 import { serverFavs } from "@/lib/favsServer";
+import { LeagueSection } from "@/components/LeagueSection";
+import { COLLAPSE_COOKIE } from "@/lib/collapse";
+import { cookies } from "next/headers";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +38,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
 
   // Favoriler: favori liglerin bölümleri en üste, favori takımların maçları ayrı kartta
   const favs = await serverFavs();
+  const rawClosed = (await cookies()).get(COLLAPSE_COOKIE)?.value ?? "";
+  const closedSet = new Set(decodeURIComponent(rawClosed).split(",").filter(Boolean));
   const favTeams = new Set(favs.filter((f) => f.kind === "team").map((f) => f.ref));
   const favLeagues = new Set(favs.filter((f) => f.kind === "league").map((f) => f.ref));
   sections.sort((a, b) => Number(favLeagues.has(b.league.code)) - Number(favLeagues.has(a.league.code)));
@@ -80,17 +85,24 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
         </section>
       )}
       {sections.map(({ league, matches }) => (
-        <section className="card" key={league.code}>
-          <Link href={`/lig/${league.code}`} className="card-head">
-            <LeagueIcon league={league} logo={logos[league.code]} />
-            <span>{league.name}</span>
-            <span className="country">{league.country}</span>
-            <span className="more">Puan durumu ›</span>
-          </Link>
+        <LeagueSection
+          key={league.code}
+          code={league.code}
+          initiallyClosed={closedSet.has(league.code)}
+          head={
+            <Link href={`/lig/${league.code}`} className="card-head">
+              <LeagueIcon league={league} logo={logos[league.code]} />
+              <span>{league.name}</span>
+              <span className="country">{league.country}</span>
+              <span className="count">{matches.length}</span>
+              <span className="more">Puan durumu ›</span>
+            </Link>
+          }
+        >
           {matches.map((m) => (
             <MatchRow key={m.id} m={m} />
           ))}
-        </section>
+        </LeagueSection>
       ))}
       <p className="foot">Veri: {dataSourceName} · Reklam yok, takip yok.</p>
     </>
