@@ -6,7 +6,7 @@ import { SearchIcon } from "@/components/SearchBox";
 import { LeagueIcon } from "@/components/LeagueIcon";
 import { LiveHero, type Featured } from "@/components/LiveHero";
 import { MatchRow } from "@/components/MatchRow";
-import { getGroupDays, getLeagueLogosCached, getMatch, getTrDays, groupLeagues, groupOf } from "@/lib/data";
+import { getGroupDaysSafe, getLeagueLogosCached, getMatch, getTrDays, groupLeagues, groupOf } from "@/lib/data";
 import { leagueByCode, type League } from "@/lib/leagues";
 import { serverFavs } from "@/lib/favsServer";
 import { LeagueSection } from "@/components/LeagueSection";
@@ -62,7 +62,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
     (c) => leagueByCode(c) && groupOf(c) === "diger",
   );
   const [ana, extra, logos = {}] = await Promise.all([
-    getGroupDays("ana", from, key),
+    getGroupDaysSafe("ana", from, key),
     Promise.all(extraCodes.map((c) => getTrDays(c, from, key).catch(() => null))),
     // Logolar günde bir yenilenir; önbellek boşsa (ör. yeni yayından sonra) sayfa onları
     // beklemesin, o seferlik bayraklar görünsün
@@ -188,7 +188,7 @@ async function OtherLeagues({
   logos: Record<string, LeagueLogo>;
 }) {
   const { pass, dayList } = homeDay(ui.d || undefined, ui.filter);
-  const diger = await getGroupDays("diger", from, ui.key);
+  const diger = await getGroupDaysSafe("diger", from, ui.key);
   const day = groupLeagues("diger")
     .map((league, i) => ({ league, all: dayList(diger[i]) }))
     .filter(({ league }) => !skip.has(league.code));

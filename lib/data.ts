@@ -75,15 +75,23 @@ export const groupLeagues = (g: LeagueGroup) => GROUPS[g];
  * eski veri hemen verilir, yenisi arka planda hazırlanır. Alınamayan lig null.
  */
 export const getGroupDays = unstable_cache(
-  async (group: LeagueGroup, from: string, to: string): Promise<(Match[] | null)[]> =>
-    Promise.all(GROUPS[group].map((l) => getTrDays(l.code, from, to).catch(() => null))),
+  async (group: LeagueGroup, from: string, to: string): Promise<(Match[] | null)[]> => {
+    const rs = await Promise.all(GROUPS[group].map((l) => getTrDays(l.code, from, to).catch(() => null)));
+    // Hiçbir lig alınamadıysa bunu önbelleğe yazma (yoksa sayfa 20 sn boyunca boş kalır)
+    if (rs.every((r) => r === null)) throw new Error("ESPN'den hiçbir lig alınamadı");
+    return rs;
+  },
   ["lig-grubu-v2", process.env.DATA_SOURCE ?? "espn"],
   { revalidate: 20 },
 );
 
 /** Tüm liglerin maçları, LEAGUES sırasıyla (arama sayfası için) */
+/** Grup alınamazsa tüm ligleri null say */
+export const getGroupDaysSafe = (group: LeagueGroup, from: string, to: string) =>
+  getGroupDays(group, from, to).catch(() => GROUPS[group].map(() => null as Match[] | null));
+
 export async function getAllLeagueDays(from: string, to: string): Promise<(Match[] | null)[]> {
-  const [ana, diger] = await Promise.all([getGroupDays("ana", from, to), getGroupDays("diger", from, to)]);
+  const [ana, diger] = await Promise.all([getGroupDaysSafe("ana", from, to), getGroupDaysSafe("diger", from, to)]);
   const by = new Map<string, Match[] | null>();
   GROUPS.ana.forEach((l, i) => by.set(l.code, ana[i]));
   GROUPS.diger.forEach((l, i) => by.set(l.code, diger[i]));
