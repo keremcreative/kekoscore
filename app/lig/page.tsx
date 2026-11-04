@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { LeagueIcon } from "@/components/LeagueIcon";
-import { getLeagueLogos } from "@/lib/data";
+import { getLeagueLogosCached } from "@/lib/data";
 import { LEAGUE_GROUPS, LEAGUES } from "@/lib/leagues";
 
 export const revalidate = 86400;
 
 export default async function Leagues() {
-  const logos = await getLeagueLogos();
+  const logos = await getLeagueLogosCached();
   return (
     <>
       <h1 className="page-title">Ligler</h1>

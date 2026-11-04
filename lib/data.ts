@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { LEAGUES, leagueByCode } from "./leagues";
 import { teamCoach } from "./wiki";
 import type { Coach, LeagueLogo, Match, Team } from "./types";
@@ -53,3 +54,17 @@ export async function getCoach(league: string, team: Team): Promise<Coach | unde
   const national = lg?.group === "Milli takımlar" && league !== "club.friendly";
   return teamCoach(team.name, national);
 }
+
+/**
+ * Ana sayfa için tüm liglerin maçları tek önbellek kaydında (20 sn). Her açılışta ~95 ayrı
+ * önbellek okuması yerine tek okuma yapılır; sekmeler arası geçiş hızlanır. Alınamayan lig null.
+ */
+export const getAllLeagueDays = unstable_cache(
+  async (from: string, to: string): Promise<(Match[] | null)[]> =>
+    Promise.all(LEAGUES.map((l) => getTrDays(l.code, from, to).catch(() => null))),
+  ["tum-ligler-v1", process.env.DATA_SOURCE ?? "espn"],
+  { revalidate: 20 },
+);
+
+/** Lig logoları tek kayıtta, günde bir yenilenir */
+export const getLeagueLogosCached = unstable_cache(getLeagueLogos, ["lig-logolari-v1", process.env.DATA_SOURCE ?? "espn"], { revalidate: 86400 });
