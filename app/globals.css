@@ -1,29 +1,16 @@
 :root {
-  --bg: #f4f2ee;
-  --surface: #ffffff;
-  --surface-2: #ebe8e2;
-  --line: #e0dcd4;
-  --text: #16181c;
-  --muted: #6e6a62;
-  --accent: #4d5c00;
+  /* Uygulama her zaman koyu temada */
+  --bg: #0e1013;
+  --surface: #171a1f;
+  --surface-2: #20242b;
+  --line: #262a31;
+  --text: #eceae4;
+  --muted: #8b8f97;
+  --accent: #e8ff5a;
   --accent-bg: #e8ff5a;
-  --live: #e0432b;
+  --live: #ff6a4d;
   --radius: 14px;
-  color-scheme: light;
-}
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0e1013;
-    --surface: #171a1f;
-    --surface-2: #20242b;
-    --line: #262a31;
-    --text: #eceae4;
-    --muted: #8b8f97;
-    --accent: #e8ff5a;
-    --accent-bg: #e8ff5a;
-    --live: #ff6a4d;
-    color-scheme: dark;
-  }
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
