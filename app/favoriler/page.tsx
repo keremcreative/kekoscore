@@ -5,7 +5,6 @@ import { PlayerPhoto } from "@/components/PlayerPhoto";
 import { StandingsTable } from "@/components/StandingsTable";
 import { TeamLogo } from "@/components/TeamLogo";
 import { FavSync } from "@/components/social/FavSync";
-import { NotifSettings } from "@/components/social/NotifSettings";
 import { getLeagueLogosCached, getPlayer, getStandings, getTeamInfo, getTeamSchedule } from "@/lib/data";
 import { serverFavs } from "@/lib/favsServer";
 import { favKey } from "@/lib/favs";
@@ -41,7 +40,6 @@ export default async function FavoritesPage() {
     <>
       <FavSync keys={favs.map(favKey)} />
       <h1 className="page-title">Favoriler</h1>
-      <NotifSettings />
       {!favs.length && (
         <div className="card empty">
           Henüz favorin yok. Bir takımın, oyuncunun ya da ligin sayfasındaki <b>☆</b> yıldıza dokununca burada görünür.

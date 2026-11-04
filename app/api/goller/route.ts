@@ -25,7 +25,7 @@ interface Job {
  * Supabase'deki zamanlayıcı (pg_cron) bunu dakikada bir çağırır. Gönderdikleri:
  *  - Büyük kulüplerin (Türk büyükleri / Avrupa devleri) ve favori takımların maçlarından 30 dk önce hatırlatma
  *  - Favori takım: maç başladı, gol, maç sonu
- * Her kullanıcı Favoriler > Bildirimler'den hangilerini istediğini seçer.
+ * Her kullanıcı Ayarlar > Bildirimler'den hangilerini istediğini seçer.
  */
 async function run(req: Request) {
   const CRON = process.env.CRON_SECRET;
@@ -122,10 +122,19 @@ async function run(req: Request) {
           if (!up) continue;
           const users = fans.get(`${m.league}/${side.team.id}`);
           if (!users?.size) continue;
+          // Golü atan: skorborddaki bu tarafın son golü
+          const sideKey = side === m.home ? "home" : "away";
+          const g = [...(m.goals ?? [])].reverse().find((x) => x.side === sideKey);
+          const who = g?.player ? ` · ${g.player}${g.pen ? " (pen.)" : g.own ? " (k.k.)" : ""}${g.minute ? ` ${g.minute}` : ""}` : "";
           jobs.push({
             key: `gol-${m.id}-${h}-${a}`,
             users,
-            payload: { title: `⚽ GOL! ${side.team.short}`, body: `${score(m)}${m.clock ? ` · ${m.clock}` : ""}`, url: url(m), tag: `gol-${m.id}-${h}-${a}` },
+            payload: {
+              title: `⚽ GOL! ${side.team.short}${who}`,
+              body: `${score(m)}${!g?.minute && m.clock ? ` · ${m.clock}` : ""}`,
+              url: url(m),
+              tag: `gol-${m.id}-${h}-${a}`,
+            },
           });
         }
       }

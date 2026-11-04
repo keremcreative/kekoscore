@@ -6,7 +6,7 @@ import { SearchIcon } from "@/components/SearchBox";
 import { LeagueIcon } from "@/components/LeagueIcon";
 import { LiveHero, type Featured } from "@/components/LiveHero";
 import { MatchRow } from "@/components/MatchRow";
-import { getAllLeagueDays, getLeagueLogosCached, getMatch } from "@/lib/data";
+import { getAllLeagueDays, getLeagueLogosCached, getMatch, getTrDays } from "@/lib/data";
 import { parseYmd, shiftDays, ymd } from "@/lib/format";
 import { LEAGUES } from "@/lib/leagues";
 import { serverFavs } from "@/lib/favsServer";
@@ -24,6 +24,9 @@ const KEEP_YESTERDAY_UNTIL = 12;
 /** Biten maç üstteki kartta bu kadar süre görünür (başlama saatinden itibaren) */
 const HERO_DONE_MS = 5 * 3600e3;
 
+/** Ana sayfada her zaman en üstte duran ligler */
+const CORE = ["tur.1", "eng.1", "esp.1", "ita.1", "ger.1", "fra.1"];
+
 const trHour = (d: Date) => Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Istanbul", hour: "2-digit", hourCycle: "h23" }).format(d));
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ d?: string; canli?: string; durum?: string }> }) {
@@ -39,7 +42,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   // Bugün açıkken dünün maçlarını da çek: gece biten ya da hâlâ süren maçlar kaybolmasın
   const from = isToday ? yesterday : key;
 
-  const [results, logos] = await Promise.all([getAllLeagueDays(from, key), getLeagueLogosCached()]);
+  const [cached, logos] = await Promise.all([getAllLeagueDays(from, key), getLeagueLogosCached()]);
+  // Önbellekteki kayıtta alınamamış ligler varsa onları yeniden dene; yoksa o ligler ana sayfadan kaybolur
+  const results = await Promise.all(cached.map((r, i) => r ?? getTrDays(LEAGUES[i].code, from, key).catch(() => null)));
   const keepYesterday = trHour(now) < KEEP_YESTERDAY_UNTIL;
   const visible = (m: Match) => {
     if (ymd(new Date(m.date)) === key) return true;
@@ -63,17 +68,19 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const favTeams = new Set(favs.filter((f) => f.kind === "team").map((f) => f.ref));
   const favLeagues = new Set(favs.filter((f) => f.kind === "league").map((f) => f.ref));
   const isFav = (code: string, m: Match) => favTeams.has(`${code}/${m.home.team.id}`) || favTeams.has(`${code}/${m.away.team.id}`);
-  // Takip edilenler üstte: favori ligler, ana ligler ve büyük kulüplerin / favori takımların oynadığı
-  // kupalar. Geri kalan ligler en altta, ülkeye göre alfabetik ve kapalı gelir.
-  const order = new Map(LEAGUES.map((l, i) => [l.code, i]));
+  // Sıralama: Süper Lig ve 5 büyük lig her zaman en üstte (bu sırayla). Sonra takip edilenler
+  // (favori ligler, Avrupa kupaları, büyük kulüplerin / favori takımların oynadığı kupalar) A-Z.
+  // Geri kalan ligler en altta, A-Z ve kapalı gelir.
+  const core = (code: string) => CORE.indexOf(code);
+  const az = (a: (typeof sections)[number], b: (typeof sections)[number]) =>
+    a.league.country.localeCompare(b.league.country, "tr") || a.league.name.localeCompare(b.league.name, "tr");
   const followed = (s: (typeof sections)[number]) =>
     favLeagues.has(s.league.code) || s.league.tier === 1 || s.matches.some((m) => isFav(s.league.code, m) || !!matchBigKind(m));
-  const top = sections
-    .filter(followed)
-    .sort((a, b) => Number(favLeagues.has(b.league.code)) - Number(favLeagues.has(a.league.code)) || order.get(a.league.code)! - order.get(b.league.code)!);
-  const rest = sections
-    .filter((s) => !followed(s))
-    .sort((a, b) => a.league.country.localeCompare(b.league.country, "tr") || order.get(a.league.code)! - order.get(b.league.code)!);
+  const top = [
+    ...sections.filter((s) => core(s.league.code) >= 0).sort((a, b) => core(a.league.code) - core(b.league.code)),
+    ...sections.filter((s) => core(s.league.code) < 0 && followed(s)).sort(az),
+  ];
+  const rest = sections.filter((s) => core(s.league.code) < 0 && !followed(s)).sort(az);
   const favMatches = sections.flatMap((s) => s.matches.filter((m) => isFav(s.league.code, m))).sort((a, b) => a.date.localeCompare(b.date));
 
   const failed = results.filter((r) => r === null).length;

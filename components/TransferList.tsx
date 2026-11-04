@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Transfer } from "@/lib/types";
-import { shortDate } from "@/lib/format";
+
 import { TeamLogo } from "./TeamLogo";
 
 /** Transfer satırları: oyuncu, nereden → nereye, bedel. teamId verilirse geliş/gidiş işareti */
@@ -23,7 +23,7 @@ export function TransferList({ items, league, teamId }: { items: Transfer[]; lea
             </span>
             <span className="tr-side">
               <span className="tr-fee">{t.fee}</span>
-              {t.date && <small>{shortDate(t.date)}</small>}
+              {t.date && <small>{monthYear(t.date)}</small>}
             </span>
           </li>
         );
@@ -31,3 +31,7 @@ export function TransferList({ items, league, teamId }: { items: Transfer[]; lea
     </ul>
   );
 }
+
+/** "Tem 2025": yıl görünsün ki eski sezonların transferleri bu yazınkiyle karışmasın */
+const monthYear = (iso: string) =>
+  new Intl.DateTimeFormat("tr-TR", { timeZone: "Europe/Istanbul", month: "short", year: "numeric" }).format(new Date(iso));
