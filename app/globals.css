@@ -686,3 +686,16 @@ a.search-row:hover { background: var(--surface-2); }
 .top-search { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line); color: var(--text); margin-left: auto; margin-right: 8px; }
 .lp .num { min-width: 14px; font-size: 11px; }
 .lp { gap: 5px; padding: 6px 8px; }
+
+/* Ligler: ülkelere göre açılır liste */
+.country-list details + details { border-top: 1px solid var(--line); }
+.country-list summary { display: flex; align-items: center; gap: 10px; padding: 9px 12px; font-size: 14px; font-weight: 600; cursor: pointer; list-style: none; }
+.country-list summary::-webkit-details-marker { display: none; }
+.country-list summary::after { content: "›"; margin-left: 4px; color: var(--muted); transition: transform .15s; }
+.country-list details[open] > summary::after { transform: rotate(90deg); }
+.country-list .cflag { font-size: 18px; line-height: 1; width: 24px; text-align: center; }
+.country-list .cname { flex: 1; }
+.country-list summary small { color: var(--muted); font-weight: 500; font-size: 12px; }
+.country-list .league-list { background: var(--surface-2); }
+.country-list .league-list a { padding-left: 22px; }
+.country-list .league-list a:first-child { border-top: 1px solid var(--line); }
