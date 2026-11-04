@@ -6,7 +6,7 @@ import { SearchIcon } from "@/components/SearchBox";
 import { LeagueIcon } from "@/components/LeagueIcon";
 import { LiveHero, type Featured } from "@/components/LiveHero";
 import { MatchRow } from "@/components/MatchRow";
-import { getAllLeagueDays, getLeagueLogosCached, getMatch, getTrDays } from "@/lib/data";
+import { MUST, getAllLeagueDays, getLeagueLogosCached, getMatch, getTrDays } from "@/lib/data";
 import { parseYmd, shiftDays, ymd } from "@/lib/format";
 import { LEAGUES } from "@/lib/leagues";
 import { serverFavs } from "@/lib/favsServer";
@@ -48,8 +48,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
 
   const [cached, logos] = await Promise.all([getAllLeagueDays(from, key).catch(() => LEAGUES.map(() => null)), getLeagueLogosCached()]);
   // Önbellekteki kayıtta alınamamış ligler varsa onları yeniden dene; yoksa o ligler ana sayfadan kaybolur
-  // En fazla 2 sn beklenir: takılan bir lig yüzünden bütün sayfa beklemesin (o lig bir sonraki yenilemede gelir)
-  const results = await Promise.all(cached.map((r, i) => r ?? within(getTrDays(LEAGUES[i].code, from, key), 2000).then((x) => x ?? null)));
+  // Küçük ligler için en fazla 2 sn beklenir (o lig bir sonraki yenilemede gelir); Süper Lig, 5 büyük lig
+  // ve Avrupa kupaları ana sayfadan asla kaybolmasın diye 7 sn'ye kadar beklenir ve önce onlar istenir.
+  const retry = (i: number) => within(getTrDays(LEAGUES[i].code, from, key), MUST.has(LEAGUES[i].code) ? 7000 : 2000).then((x) => x ?? null);
+  const results: (Match[] | null)[] = [...cached];
+  const mustIdx = cached.map((r, i) => i).filter((i) => !cached[i] && MUST.has(LEAGUES[i].code));
+  const restIdx = cached.map((r, i) => i).filter((i) => !cached[i] && !MUST.has(LEAGUES[i].code));
+  const mustP = Promise.all(mustIdx.map(async (i) => (results[i] = await retry(i))));
+  await Promise.all([mustP, ...restIdx.map(async (i) => (results[i] = await retry(i)))]);
   const keepYesterday = trHour(now) < KEEP_YESTERDAY_UNTIL;
   const visible = (m: Match) => {
     if (ymd(new Date(m.date)) === key) return true;
