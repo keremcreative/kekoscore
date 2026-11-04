@@ -50,13 +50,10 @@ async function slot<T>(fn: () => Promise<T>, low = false): Promise<T> {
   }
 }
 
-/** Skor tablosu istekleri küçük ve hızlı; takılan isteği daha erken bırakıp yeniden dene */
-const QUICK = 3500;
-
-async function get(url: string, revalidate: number, ms = 5000, low = false): Promise<J> {
+async function get(url: string, revalidate: number, ms = 8000, low = false): Promise<J> {
   let last: unknown;
-  // Zaman aşımı ya da 5xx'te bir kez daha dene. Süre kısa tutuldu: takılan tek bir istek
-  // (eskiden 8 sn + 8 sn) bütün ana sayfayı bekletiyordu.
+  // Zaman aşımı ya da 5xx'te bir kez daha dene. Süreyi kısaltmayın: ESPN'in tarih aralığı
+  // sorguları birkaç saniye sürebiliyor; 3,5 sn'ye indirince bütün ligler düşmüştü.
   for (let i = 0; i < 2; i++) {
     try {
       const res = await slot(() => fetch(url, { next: { revalidate }, headers: { accept: "application/json" }, signal: AbortSignal.timeout(ms) }), low);
@@ -129,17 +126,15 @@ function toMatch(ev: J, league: string): Match {
 const events = (data: J, league: string): Match[] => (data?.events ?? []).map((e: J) => toMatch(e, league));
 
 export async function scoreboard(league: string, yyyymmdd: string): Promise<Match[]> {
-  return events(await get(`${SITE}/${league}/scoreboard?dates=${yyyymmdd}`, 20, QUICK), league);
+  return events(await get(`${SITE}/${league}/scoreboard?dates=${yyyymmdd}`, 20), league);
 }
 
 /** Tarih aralığındaki maçlar (YYYYMMDD-YYYYMMDD) */
 export async function scoreboardRange(league: string, from: string, to: string, revalidate = 60): Promise<Match[]> {
   try {
-    return events(await get(`${SITE}/${league}/scoreboard?dates=${from}-${to}&limit=200`, revalidate, QUICK), league);
+    return events(await get(`${SITE}/${league}/scoreboard?dates=${from}-${to}&limit=200`, revalidate), league);
   } catch (e) {
-    // Zaman aşımında tek tek günlere düşmek bekleyişi katlıyordu: yalnızca ESPN sorguyu
-    // reddederse (4xx) günleri tek tek çek
-    if (!(e instanceof Error && /^ESPN 4/.test(e.message))) throw e;
+    // Aralık sorgusu reddedilir ya da yetişmezse günleri tek tek çek
     const days: string[] = [];
     const d = new Date(`${from.slice(0, 4)}-${from.slice(4, 6)}-${from.slice(6, 8)}T12:00:00Z`);
     const end = `${to.slice(0, 4)}-${to.slice(4, 6)}-${to.slice(6, 8)}`;
@@ -376,7 +371,7 @@ export async function roster(league: string, id: string): Promise<Player[]> {
 
 /** Lig logoları (açık ve koyu tema), scoreboard yanıtının "leagues" alanından */
 export async function leagueLogo(league: string): Promise<LeagueLogo> {
-  const data = await get(`${SITE}/${league}/scoreboard`, 86400, 5000, true);
+  const data = await get(`${SITE}/${league}/scoreboard`, 86400, 8000, true);
   const logos: J[] = data?.leagues?.[0]?.logos ?? [];
   const has = (l: J, r: string) => (l?.rel ?? []).includes(r);
   return {
