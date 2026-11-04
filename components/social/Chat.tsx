@@ -11,7 +11,11 @@ interface Msg {
   user_id: string;
   body: string;
   created_at: string;
+  edited_at?: string | null;
 }
+
+const COLS = "id, user_id, body, created_at, edited_at";
+const COLS_OLD = "id, user_id, body, created_at";
 
 const ROOM = "genel";
 const time = (iso: string) =>
@@ -52,6 +56,9 @@ function Room({ me }: { me: Me }) {
   const [ready, setReady] = useState(false);
   const [firstUnread, setFirstUnread] = useState<number | null>(null);
   const [newBelow, setNewBelow] = useState(0);
+  const [menu, setMenu] = useState<number | null>(null);
+  const [editing, setEditing] = useState<Msg | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const atBottom = useRef(true);
   const userMoved = useRef(false);
   const readKey = `kk-chat-read:${me.id}`;
@@ -71,15 +78,14 @@ function Room({ me }: { me: Me }) {
   useEffect(() => {
     const sb = supabase();
     let alive = true;
-    sb.from("messages")
-      .select("id, user_id, body, created_at")
-      .eq("room", ROOM)
-      .order("created_at", { ascending: false })
-      .limit(150)
+    // edited_at sütunu yoksa (sohbet-duzenle.sql çalıştırılmadıysa) eski sütunlarla yükle
+    const load = (cols: string) => sb.from("messages").select(cols).eq("room", ROOM).order("created_at", { ascending: false }).limit(150);
+    load(COLS)
+      .then(async (r) => (r.error ? await load(COLS_OLD) : r))
       .then(({ data, error }) => {
         if (!alive) return;
         if (error) setError("Mesajlar yüklenemedi.");
-        const list = ((data ?? []) as Msg[]).reverse();
+        const list = ((data ?? []) as unknown as Msg[]).reverse();
         const lr = lastRead.current;
         // İlk kez açanlar için her şey okunmuş sayılır; sonra en alttan başlar
         const unread = lr > 0 ? list.find((m) => m.id > lr && m.user_id !== me.id) : undefined;
@@ -94,6 +100,10 @@ function Room({ me }: { me: Me }) {
         const m = p.new as Msg;
         setMsgs((list) => (list.some((x) => x.id === m.id) ? list : [...list, m]));
         loadNames([m.user_id]);
+      })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages", filter: `room=eq.${ROOM}` }, (p) => {
+        const m = p.new as Msg;
+        setMsgs((list) => list.map((x) => (x.id === m.id ? { ...x, body: m.body, edited_at: m.edited_at } : x)));
       })
       .on("postgres_changes", { event: "DELETE", schema: "public", table: "messages" }, (p) => {
         setMsgs((list) => list.filter((x) => x.id !== (p.old as Msg).id));
@@ -175,19 +185,33 @@ function Room({ me }: { me: Me }) {
     window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
   }
 
-  async function send(e: React.FormEvent) {
-    e.preventDefault();
+  async function send(e?: React.FormEvent) {
+    e?.preventDefault();
     const body = text.trim();
     if (!body) return;
     setText("");
     setError("");
-    const { data, error } = await supabase().from("messages").insert({ room: ROOM, body }).select("id, user_id, body, created_at").single();
+    if (editing) {
+      const id = editing.id;
+      setEditing(null);
+      if (body === editing.body) return;
+      const edited_at = new Date().toISOString();
+      const { error } = await supabase().from("messages").update({ body, edited_at }).eq("id", id);
+      if (error) {
+        setError("Düzenlenemedi. (Supabase'de sohbet-duzenle.sql çalıştırıldı mı?)");
+      } else {
+        setMsgs((list) => list.map((x) => (x.id === id ? { ...x, body, edited_at } : x)));
+      }
+      return;
+    }
+    const { data, error } = await supabase().from("messages").insert({ room: ROOM, body }).select(COLS_OLD).single();
     if (error) {
       setError("Mesaj gönderilemedi.");
       setText(body);
     } else if (data) {
-      setMsgs((list) => (list.some((x) => x.id === data.id) ? list : [...list, data as Msg]));
-      notify(data.id);
+      const d = data as unknown as Msg;
+      setMsgs((list) => (list.some((x) => x.id === d.id) ? list : [...list, d]));
+      notify(d.id);
     }
   }
 
@@ -205,10 +229,37 @@ function Room({ me }: { me: Me }) {
   }
 
   async function remove(id: number) {
-    if (!confirm("Mesaj silinsin mi?")) return;
+    setMenu(null);
+    if (!confirm("Mesaj herkesten silinsin mi?")) return;
     const { error } = await supabase().from("messages").delete().eq("id", id);
-    if (!error) setMsgs((list) => list.filter((x) => x.id !== id));
+    if (error) setError("Mesaj silinemedi.");
+    else setMsgs((list) => list.filter((x) => x.id !== id));
   }
+
+  function startEdit(m: Msg) {
+    setMenu(null);
+    setEditing(m);
+    setText(m.body);
+    setTimeout(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(el.value.length, el.value.length);
+    }, 0);
+  }
+
+  function cancelEdit() {
+    setEditing(null);
+    setText("");
+  }
+
+  // Yazdıkça kutu büyüsün (en fazla ~6 satır)
+  useLayoutEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
+  }, [text]);
 
   return (
     <div className="chat">
@@ -238,10 +289,23 @@ function Room({ me }: { me: Me }) {
               )}
               <div className={`msg${mine ? " mine" : ""}${sameAuthor ? " cont" : ""}`}>
                 {!mine && !sameAuthor && <span className="who">{names[m.user_id] ?? "…"}</span>}
-                <div className="bubble" onDoubleClick={mine ? () => remove(m.id) : undefined}>
+                <div
+                  className={`bubble${menu === m.id ? " picked" : ""}`}
+                  onClick={mine ? () => setMenu(menu === m.id ? null : m.id) : undefined}
+                  role={mine ? "button" : undefined}
+                >
                   {m.body}
-                  <span className="t">{time(m.created_at)}</span>
+                  <span className="t">
+                    {m.edited_at && "düzenlendi · "}
+                    {time(m.created_at)}
+                  </span>
                 </div>
+                {mine && menu === m.id && (
+                  <div className="msg-actions">
+                    <button onClick={() => startEdit(m)}>✏️ Düzenle</button>
+                    <button className="danger" onClick={() => remove(m.id)}>🗑 Herkesten sil</button>
+                  </div>
+                )}
               </div>
             </div>
           );
@@ -254,10 +318,36 @@ function Room({ me }: { me: Me }) {
       )}
       {error && <p className="form-error">{error}</p>}
       <form className="composer" onSubmit={send}>
-        <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Mesaj yaz…" maxLength={1000} enterKeyHint="send" />
-        <button className="btn primary" disabled={!text.trim()} aria-label="Gönder">
-          ➤
-        </button>
+        {editing && (
+          <div className="editing-bar">
+            <span>✏️ Mesajı düzenliyorsun</span>
+            <button type="button" className="link-btn" onClick={cancelEdit}>
+              Vazgeç
+            </button>
+          </div>
+        )}
+        <div className="composer-row">
+          <textarea
+            ref={inputRef}
+            rows={1}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              // Bilgisayarda Enter gönderir, Shift+Enter alt satır. Telefonda Enter her zaman alt satır.
+              const touch = typeof window !== "undefined" && window.matchMedia("(pointer: coarse)").matches;
+              if (e.key === "Enter" && !e.shiftKey && !touch) {
+                e.preventDefault();
+                send();
+              }
+              if (e.key === "Escape" && editing) cancelEdit();
+            }}
+            placeholder="Mesaj yaz…"
+            maxLength={1000}
+          />
+          <button className="btn primary" disabled={!text.trim()} aria-label={editing ? "Kaydet" : "Gönder"}>
+            {editing ? "✓" : "➤"}
+          </button>
+        </div>
       </form>
     </div>
   );

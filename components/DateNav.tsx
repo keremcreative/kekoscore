@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { dayLabel, parseYmd, shiftDays, ymd } from "@/lib/format";
+import { parseYmd, shiftDays, ymd } from "@/lib/format";
 
 export type Filter = "hepsi" | "canli" | "biten";
 
@@ -25,9 +25,10 @@ export function DateNav({ selected, filter }: { selected: Date; filter: Filter }
       </Link>
       {days.map((d) => {
         const key = ymd(d);
-        const label = key === today ? "Bugün" : key === ymd(shiftDays(new Date(), -1)) ? "Dün" : key === ymd(shiftDays(new Date(), 1)) ? "Yarın" : dayLabel(d);
+        // "04.11" biçiminde; bugünün kutusu seçili değilken ince bir çerçeveyle belli olur
+        const label = `${key.slice(6, 8)}.${key.slice(4, 6)}`;
         return (
-          <Link key={key} href={href(key, filter)} className={key === sel ? "on" : ""} scroll={false}>
+          <Link key={key} href={href(key, filter)} className={[key === sel ? "on" : "", key === today ? "today" : ""].join(" ").trim() || undefined} scroll={false}>
             {label}
           </Link>
         );

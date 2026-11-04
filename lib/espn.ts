@@ -30,10 +30,38 @@ const STANDINGS = "https://site.api.espn.com/apis/v2/sports/soccer";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type J = any;
 
+/**
+ * ESPN'e aynı anda en fazla bu kadar istek. ~170 lig birden istenince ESPN bazılarını
+ * yavaşlatıp düşürüyordu; ana sayfadan rastgele ligler kayboluyordu.
+ */
+const MAX_PARALLEL = 24;
+let active = 0;
+const queue: (() => void)[] = [];
+async function slot<T>(fn: () => Promise<T>): Promise<T> {
+  if (active >= MAX_PARALLEL) await new Promise<void>((r) => queue.push(r));
+  active++;
+  try {
+    return await fn();
+  } finally {
+    active--;
+    queue.shift()?.();
+  }
+}
+
 async function get(url: string, revalidate: number): Promise<J> {
-  const res = await fetch(url, { next: { revalidate }, headers: { accept: "application/json" } });
-  if (!res.ok) throw new Error(`ESPN ${res.status}: ${url}`);
-  return res.json();
+  let last: unknown;
+  // Zaman aşımı ya da 5xx'te bir kez daha dene
+  for (let i = 0; i < 2; i++) {
+    try {
+      const res = await slot(() => fetch(url, { next: { revalidate }, headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) }));
+      if (res.ok) return await res.json();
+      last = new Error(`ESPN ${res.status}: ${url}`);
+      if (res.status < 500 && res.status !== 429) break;
+    } catch (e) {
+      last = e;
+    }
+  }
+  throw last;
 }
 
 function team(t: J): Team {
@@ -73,6 +101,17 @@ function toMatch(ev: J, league: string): Match {
     home: side(home),
     away: side(away),
   };
+  const homeId = m.home.team.id;
+  const goals = ((comp?.details ?? []) as J[])
+    .filter((d) => d?.scoringPlay)
+    .map((d) => ({
+      side: (String(d?.team?.id) === homeId ? "home" : "away") as "home" | "away",
+      player: d?.athletesInvolved?.[0]?.displayName ?? d?.athletesInvolved?.[0]?.shortName,
+      minute: d?.clock?.displayValue,
+      own: d?.ownGoal === true,
+      pen: d?.penaltyKick === true,
+    }));
+  if (goals.length) m.goals = goals;
   // Bazı uç noktalar winner alanını vermiyor: skordan çıkar
   if (state === "post" && !m.home.winner && !m.away.winner && m.home.score !== undefined && m.away.score !== undefined) {
     m.home.winner = m.home.score > m.away.score;

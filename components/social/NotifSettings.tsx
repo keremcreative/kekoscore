@@ -16,7 +16,7 @@ const ROWS: { key: Key; title: string; sub: string }[] = [
   { key: "chat", title: "Sohbet", sub: "Arkadaşların yeni mesaj yazınca" },
 ];
 
-/** Favoriler sayfasındaki bildirim kartı: cihaz izni + hangi bildirimlerin geleceği */
+/** Ayarlar sayfasındaki bildirim kartı: cihaz izni + hangi bildirimlerin geleceği */
 export function NotifSettings() {
   const { me, loading } = useSession();
   const [prefs, setPrefs] = useState<Prefs>(DEFAULTS);

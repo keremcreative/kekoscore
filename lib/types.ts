@@ -23,6 +23,8 @@ export interface Match {
   detail: string; // "FT", "HT", "20:00"
   home: Side;
   away: Side;
+  /** Skorbord'daki goller (golü atan, dakika); bildirimlerde kullanılır */
+  goals?: { side: "home" | "away"; player?: string; minute?: string; own?: boolean; pen?: boolean }[];
 }
 
 export type EventKind = "goal" | "own-goal" | "penalty" | "yellow" | "red" | "sub" | "other";
