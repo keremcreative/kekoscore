@@ -2,7 +2,7 @@ import { getScoreboardRange } from "@/lib/data";
 import { shiftDays, ymd } from "@/lib/format";
 import { LEAGUES, leagueByCode } from "@/lib/leagues";
 import { matchBigKind } from "@/lib/bigClubs";
-import { admin, claim, loadPrefs, sendAll, type Payload, type Sub } from "@/lib/pushServer";
+import { admin, claim, DEFAULT_PREFS, loadPrefs, sendAll, type Payload, type Sub } from "@/lib/pushServer";
 import type { Match } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -39,13 +39,16 @@ async function run(req: Request) {
   if (given !== CRON) return new Response("Yetkisiz", { status: 401 });
 
   const { data: subsRaw } = await sb.from("push_subscriptions").select("endpoint, p256dh, auth, user_id");
-  const subs = (subsRaw ?? []) as Sub[];
+  // Giriş yapmamış cihazların user_id'si boş: her birini ayrı "anon:" kullanıcı say (varsayılan tercihler)
+  const subs = ((subsRaw ?? []) as (Omit<Sub, "user_id"> & { user_id: string | null })[]).map((s) => ({ ...s, user_id: s.user_id ?? `anon:${s.endpoint}` }));
   if (!subs.length) return Response.json({ checked: 0 });
   const userIds = [...new Set(subs.map((s) => s.user_id))];
-  const [prefs, { data: favs }] = await Promise.all([
-    loadPrefs(sb, userIds),
-    sb.from("favorites").select("user_id, ref").eq("kind", "team").in("user_id", userIds),
+  const realIds = userIds.filter((u) => !u.startsWith("anon:"));
+  const [realPrefs, { data: favs }] = await Promise.all([
+    loadPrefs(sb, realIds),
+    realIds.length ? sb.from("favorites").select("user_id, ref").eq("kind", "team").in("user_id", realIds) : Promise.resolve({ data: [] as { user_id: string; ref: string }[] }),
   ]);
+  const prefs = new Map(userIds.map((u) => [u, realPrefs.get(u) ?? { ...DEFAULT_PREFS }]));
 
   const fans = new Map<string, Set<string>>(); // "lig/takımId" -> kullanıcılar
   for (const f of favs ?? []) {

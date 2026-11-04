@@ -55,13 +55,14 @@ export function NotifSettings() {
   return (
     <section className="card notif">
       <div className="section-title">🔔 Bildirimler</div>
+      <PushToggle offLabel="🔕 Bu cihazda bildirimler kapalı" onChange={setOn} />
       {!me ? (
         <p className="push-hint">
-          Maç hatırlatmaları için önce <Link href="/sohbet">Sohbet</Link> ekranından giriş yap.
+          Giriş yapmadan da büyük maç hatırlatmaları ve duyurular gelir. Favori takım bildirimleri ve ayrıntılı seçim için{" "}
+          <Link href="/sohbet">Sohbet</Link> ekranından giriş yap.
         </p>
       ) : (
         <>
-          <PushToggle offLabel="🔕 Bu cihazda bildirimler kapalı" onChange={setOn} />
           <div className={`notif-rows${on ? "" : " off"}`}>
             {ROWS.map((r) => (
               <label key={r.key} className="notif-row">

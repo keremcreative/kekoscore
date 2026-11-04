@@ -6,6 +6,7 @@ import { ServiceWorker } from "@/components/ServiceWorker";
 import { Ticker } from "@/components/Ticker";
 import { TzSwitch } from "@/components/TzSwitch";
 import { SearchIcon } from "@/components/SearchBox";
+import { NotifPrompt } from "@/components/social/NotifPrompt";
 import { initTz } from "@/lib/tz";
 import "./globals.css";
 
@@ -46,6 +47,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </Suspense>
         <main className="wrap">{children}</main>
         <ServiceWorker />
+        <NotifPrompt />
         <Suspense>
           <TabBar />
         </Suspense>
