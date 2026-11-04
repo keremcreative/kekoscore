@@ -4,7 +4,7 @@
  * yalnızca bu dosyayı düzeltmek yeterli. Her alan isteğe bağlı okunur ki
  * eksik veri sayfayı çökertmesin.
  */
-import { playerPhotos } from "./wiki";
+import { rateLineups } from "./rating";
 import { kindFromText, minuteNum, momentum, trText, type Play } from "./momentum";
 import type {
   EventKind,
@@ -137,20 +137,25 @@ function player(a: J, pos: J): Player {
     posLabel: (pos ?? ath?.position)?.abbreviation,
     age: num(ath?.age),
     nationality: ath?.citizenship ?? ath?.birthPlace?.country,
-    photo: ath?.headshot?.href,
+    photo: ath?.headshot?.href ?? headshot(ath?.id),
     dob: typeof ath?.dateOfBirth === "string" ? ath.dateOfBirth.slice(0, 10) : undefined,
   };
 }
 
-/** ESPN'de fotoğrafı olmayan oyuncular için Wikidata'dan fotoğraf */
-async function fillPhotos<T extends { name: string; photo?: string; dob?: string }>(list: T[]): Promise<T[]> {
-  const missing = list.filter((p) => !p.photo && p.name !== "?");
-  if (!missing.length) return list;
-  const found = await playerPhotos(missing.map((p) => ({ name: p.name, dob: p.dob })));
-  missing.forEach((p, i) => {
-    if (found[i]) p.photo = found[i];
-  });
-  return list;
+/**
+ * Tüm oyuncu fotoğrafları tek kaynaktan: ESPN'in aynı arka plansız, aynı kadrajlı vesikaları.
+ * ESPN'de olmayan oyuncuda dosya 404 döner, ekranda baş harfler görünür.
+ */
+const headshot = (id?: string | number) => (id ? `https://a.espncdn.com/i/headshots/soccer/players/full/${id}.png` : undefined);
+
+function statMap(list: J): Record<string, number> | undefined {
+  if (!Array.isArray(list) || !list.length) return undefined;
+  const out: Record<string, number> = {};
+  for (const s of list) {
+    const v = Number(s?.value ?? s?.displayValue);
+    if (s?.name && Number.isFinite(v)) out[s.name] = v;
+  }
+  return out;
 }
 
 function lineups(data: J, homeId: string): Lineup[] {
@@ -161,6 +166,7 @@ function lineups(data: J, homeId: string): Lineup[] {
         starter: p?.starter === true,
         subbedIn: p?.subbedIn === true || p?.subbedIn?.didSub === true,
         subbedOut: p?.subbedOut === true || p?.subbedOut?.didSub === true,
+        stats: statMap(p?.stats),
       }));
       return {
         side: r?.homeAway === "home" || String(r?.team?.id) === homeId ? "home" : "away",
@@ -259,7 +265,7 @@ export async function matchDetail(league: string, id: string): Promise<MatchDeta
     plays: flow,
     momentum: momentum(flow, nowMin),
     stats,
-    lineups: lineups(data, homeId),
+    lineups: base.state === "pre" ? lineups(data, homeId) : rateLineups(lineups(data, homeId), base.home.score, base.away.score),
     h2h: h2h(data, league, base.home.team, base.away.team).filter((m) => m.id !== id),
   };
 }
@@ -318,7 +324,7 @@ export async function roster(league: string, id: string): Promise<Player[]> {
   const raw: J[] = data?.athletes ?? [];
   // Bazen pozisyona göre gruplu ({ position, items }) geliyor
   const flat = raw.flatMap((x) => (Array.isArray(x?.items) ? x.items : [x]));
-  return fillPhotos(flat.map((a) => player(a, a?.position)));
+  return flat.map((a) => player(a, a?.position));
 }
 
 /** Lig logoları (açık ve koyu tema), scoreboard yanıtının "leagues" alanından */
@@ -358,7 +364,7 @@ export async function playerProfile(league: string, id: string): Promise<import(
   const d = String(a?.displayDOB ?? "").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   const dob = d ? `${d[3]}-${d[2].padStart(2, "0")}-${d[1].padStart(2, "0")}` : undefined;
   const name = a?.displayName ?? a?.fullName ?? "?";
-  const photo = a?.headshot?.href ?? (await playerPhotos([{ name, dob }]))[0] ?? `https://a.espncdn.com/i/headshots/soccer/players/full/${id}.png`;
+  const photo = a?.headshot?.href ?? headshot(id);
   return {
     id: String(a?.id ?? id),
     league,
@@ -387,4 +393,52 @@ export async function playerProfile(league: string, id: string): Promise<import(
       })),
     },
   };
+}
+
+const FEE_TR: Record<string, string> = { Loan: "Kiralık", "Free Transfer": "Bonservissiz", Free: "Bonservissiz", Undisclosed: "Bedeli açıklanmadı", "End of loan": "Kiralık dönüşü", "Loan Return": "Kiralık dönüşü" };
+
+/** Ligdeki transferler (bu ve geçen sezon), yeniden eskiye */
+export async function transfers(league: string): Promise<import("./types").Transfer[]> {
+  const y = new Date().getUTCFullYear();
+  const rs = await Promise.allSettled([y, y - 1].map((season) => get(`${SITE}/${league}/transactions?season=${season}&limit=300`, 3600)));
+  if (rs.every((r) => r.status === "rejected")) throw (rs[0] as PromiseRejectedResult).reason;
+  const seen = new Set<string>();
+  return rs
+    .flatMap((r) => (r.status === "fulfilled" ? r.value?.transactions ?? [] : []))
+    .map((t: J) => {
+      const raw = String(t?.displayAmount ?? t?.type ?? "");
+      return {
+        date: t?.date ?? "",
+        player: t?.athlete?.displayName ?? "?",
+        playerId: t?.athlete?.id ? String(t.athlete.id) : undefined,
+        from: t?.from ? team(t.from) : undefined,
+        to: t?.to ? team(t.to) : undefined,
+        fee: FEE_TR[raw] ?? (raw || "—"),
+      };
+    })
+    .filter((t: import("./types").Transfer) => {
+      const k = `${t.player}|${t.date}`;
+      return !seen.has(k) && !!seen.add(k);
+    })
+    .sort((a: import("./types").Transfer, b: import("./types").Transfer) => b.date.localeCompare(a.date));
+}
+
+/** Gol ve asist krallığı */
+export async function leaders(league: string): Promise<import("./types").LeagueLeaders> {
+  const data = await get(`${SITE}/${league}/statistics`, 1800);
+  const cats: J[] = data?.stats ?? data?.statistics ?? [];
+  const pick = (re: RegExp) => {
+    const c = cats.find((x) => re.test(`${x?.name ?? ""} ${x?.displayName ?? ""}`));
+    return (c?.leaders ?? []).slice(0, 20).map((l: J) => {
+      const a = l?.athlete ?? {};
+      const t = l?.team ?? a?.team;
+      return {
+        player: a?.displayName ?? a?.fullName ?? "?",
+        playerId: a?.id ? String(a.id) : undefined,
+        team: t ? team(t) : undefined,
+        value: Number(l?.value ?? l?.displayValue) || 0,
+      };
+    });
+  };
+  return { goals: pick(/goal/i), assists: pick(/assist/i) };
 }

@@ -5,6 +5,7 @@ import { TabBar } from "@/components/TabBar";
 import { ServiceWorker } from "@/components/ServiceWorker";
 import { Ticker } from "@/components/Ticker";
 import { TzSwitch } from "@/components/TzSwitch";
+import { SearchIcon } from "@/components/SearchBox";
 import { initTz } from "@/lib/tz";
 import "./globals.css";
 
@@ -33,6 +34,9 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           <Link href="/" className="brand">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img className="brand-mark" src="/icon.svg" alt="" width={28} height={28} /> kekoscore
+          </Link>
+          <Link href="/ara" className="top-search" aria-label="Ara">
+            <SearchIcon />
           </Link>
           <TzSwitch value={tz} />
         </header>

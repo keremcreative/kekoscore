@@ -13,6 +13,7 @@ import { Momentum } from "@/components/Momentum";
 import { Commentary } from "@/components/Commentary";
 import { kickoff, longDate } from "@/lib/format";
 import { leagueByCode } from "@/lib/leagues";
+import { RatingBadge } from "@/components/RatingBadge";
 import type { Coach, EventKind, Lineup, LineupPlayer, MatchDetail } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -99,6 +100,7 @@ export default async function MatchPage({
 
       {tab === "ozet" && (
         <>
+          <BestPlayer m={m} />
           {(m.momentum.length > 0 || (live && m.plays.length > 0)) && (
             <section className="card">
               <div className="section-title">{live ? "Maçın gidişatı · canlı" : "Maçın gidişatı"}</div>
@@ -208,10 +210,12 @@ function HeroTeam({ m, side, league }: { m: MatchDetail; side: "home" | "away"; 
 function PlayerLine({ p, league }: { p: LineupPlayer; league: string }) {
   const body = (
     <>
+      <PlayerPhoto src={p.photo} name={p.name} size={24} />
       <span className="num">{p.number ?? ""}</span>
-      <span className="pname">{p.name}</span>
+      <span className="pname">{shortName(p.name)}</span>
       {p.subbedOut && <span className="sub-out" title="Oyundan çıktı">↓</span>}
       {p.subbedIn && <span className="sub-in" title="Oyuna girdi">↑</span>}
+      <RatingBadge r={p.rating} />
     </>
   );
   return p.id ? (
@@ -220,6 +224,12 @@ function PlayerLine({ p, league }: { p: LineupPlayer; league: string }) {
     <div className="lp">{body}</div>
   );
 }
+
+/** Dar sütunda uzun adlar: "Victor Osimhen" → "V. Osimhen" */
+const shortName = (n: string) => {
+  const w = n.split(/\s+/);
+  return n.length > 11 && w.length > 1 ? `${w[0][0]}. ${w.slice(1).join(" ")}` : n;
+};
 
 const ORDER = { G: 0, D: 1, M: 2, F: 3, "?": 4 } as const;
 
@@ -252,6 +262,7 @@ function Lineups({ m, coaches }: { m: MatchDetail; coaches: (Coach | undefined)[
   const bench = (l?: Lineup) => (l?.players ?? []).filter((p) => !p.starter);
   return (
     <>
+      <BestPlayer m={m} />
       <section className="card">
         <div className="lineup-head">
           <span>{m.home.team.short} {sides[0]?.formation && <small>{sides[0].formation}</small>}</span>
@@ -281,6 +292,25 @@ function Lineups({ m, coaches }: { m: MatchDetail; coaches: (Coach | undefined)[
         )}
       </section>
     </>
+  );
+}
+
+/** Maçın en yüksek reytingli oyuncusu */
+function BestPlayer({ m }: { m: MatchDetail }) {
+  const all = m.lineups.flatMap((l) => l.players.map((p) => ({ p, side: l.side })));
+  const best = all.filter((x) => x.p.rating !== undefined).sort((a, b) => b.p.rating! - a.p.rating!)[0];
+  if (!best) return null;
+  const team = best.side === "home" ? m.home.team : m.away.team;
+  return (
+    <Link href={`/oyuncu/${m.league}/${best.p.id}`} className="card best-player">
+      <PlayerPhoto src={best.p.photo} name={best.p.name} size={44} />
+      <span className="best-txt">
+        <small>{m.state === "in" ? "Şu an maçın en iyisi" : "Maçın oyuncusu"}</small>
+        <b>{best.p.name}</b>
+        <span>{team.name}</span>
+      </span>
+      <RatingBadge r={best.p.rating} big />
+    </Link>
   );
 }
 

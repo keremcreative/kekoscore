@@ -7,19 +7,23 @@ import { MatchRow } from "@/components/MatchRow";
 import { StandingsTable } from "@/components/StandingsTable";
 import { Tabs } from "@/components/Tabs";
 import { TeamLogo } from "@/components/TeamLogo";
-import { getCoach, getRoster, getStandings, getTeamInfo, getTeamSchedule } from "@/lib/data";
+import { getCoach, getRoster, getStandings, getTeamInfo, getTeamSchedule, getTransfers } from "@/lib/data";
+import { TransferList } from "@/components/TransferList";
 import { PlayerPhoto } from "@/components/PlayerPhoto";
 import { kickoff, longDate } from "@/lib/format";
 import { leagueByCode } from "@/lib/leagues";
 import { seasonStats } from "@/lib/teamStats";
-import type { Player, PositionGroup, StandingRow, Team } from "@/lib/types";
+import type { Player, PositionGroup, StandingRow, Team, Transfer } from "@/lib/types";
 
 export const revalidate = 120;
 
 const TABS = [
+  { key: "genel", label: "Genel bakış" },
   { key: "maclar", label: "Maçlar" },
-  { key: "istatistik", label: "İstatistik" },
+  { key: "puan", label: "Puan durumu" },
   { key: "kadro", label: "Kadro" },
+  { key: "istatistik", label: "İstatistik" },
+  { key: "transfer", label: "Transferler" },
 ];
 
 const GROUPS: { pos: PositionGroup; label: string }[] = [
@@ -41,16 +45,18 @@ export default async function TeamPage({
 }) {
   await initTz();
   const { league: code, id } = await params;
-  const tab = (await searchParams).sekme ?? "maclar";
+  const tab = (await searchParams).sekme ?? "genel";
   const league = leagueByCode(code);
   if (!league) notFound();
 
-  const [infoR, schedR, tableR, rosterR] = await Promise.allSettled([
+  const [infoR, schedR, tableR, rosterR, trR] = await Promise.allSettled([
     getTeamInfo(code, id),
     getTeamSchedule(code, id),
     getStandings(code),
     tab === "kadro" ? getRoster(code, id) : Promise.resolve([] as Player[]),
+    tab === "transfer" || tab === "genel" ? getTransfers(code) : Promise.resolve([] as Transfer[]),
   ]);
+  const teamTransfers = (settled(trR) ?? []).filter((t) => t.from?.id === id || t.to?.id === id);
   const info = settled(infoR);
   const sched = settled(schedR) ?? { past: [], upcoming: [] };
   const table = settled(tableR) ?? [];
@@ -87,7 +93,7 @@ export default async function TeamPage({
       {coach && (
         <section className="card coach">
           <PlayerPhoto src={coach.photo} name={coach.name} size={44} />
-          <span>
+          <span className="coach-txt">
             <small>Teknik direktör</small>
             <b>{coach.name}</b>
           </span>
@@ -96,6 +102,77 @@ export default async function TeamPage({
       )}
 
       <Tabs items={TABS} current={tab} base={base} />
+
+      {tab === "genel" && (
+        <>
+          {next && (
+            <section className="card">
+              <div className="section-title">Sıradaki maç · {longDate(next.date)}</div>
+              <Link href={`/mac/${next.league}/${next.id}`} className="next-match">
+                <span><TeamLogo team={next.home.team} size={30} />{next.home.team.short}</span>
+                <b>{kickoff(next.date)}</b>
+                <span><TeamLogo team={next.away.team} size={30} />{next.away.team.short}</span>
+              </Link>
+            </section>
+          )}
+          {stats.played > 0 && (
+            <section className="card">
+              <div className="section-title">Sezon özeti · {stats.played} maç</div>
+              <div className="mini-tiles">
+                <Tile label="G" value={stats.won} />
+                <Tile label="B" value={stats.drawn} />
+                <Tile label="M" value={stats.lost} />
+                <Tile label="Attığı" value={stats.gf} />
+                <Tile label="Yediği" value={stats.ga} />
+                <Tile label="Puan" value={row?.points ?? stats.won * 3 + stats.drawn} />
+              </div>
+            </section>
+          )}
+          {sched.past.length > 0 && (
+            <section className="card">
+              <Link href={`${base}?sekme=maclar`} className="card-head">
+                Son maçlar <span className="more">Tümü ›</span>
+              </Link>
+              {sched.past.slice(0, 5).map((m) => (
+                <MatchRow key={m.id} m={m} teamId={id} showDate />
+              ))}
+            </section>
+          )}
+          {row && (
+            <section className="card">
+              <Link href={`${base}?sekme=puan`} className="card-head">
+                Puan durumu <span className="more">Tümü ›</span>
+              </Link>
+              <StandingsTable rows={around(table, row)} league={code} highlight={id} />
+            </section>
+          )}
+          {teamTransfers.length > 0 && (
+            <section className="card">
+              <Link href={`${base}?sekme=transfer`} className="card-head">
+                Son transferler <span className="more">Tümü ›</span>
+              </Link>
+              <TransferList items={teamTransfers.slice(0, 4)} league={code} teamId={id} />
+            </section>
+          )}
+        </>
+      )}
+
+      {tab === "puan" && (
+        <section className="card">
+          {table.length ? <StandingsTable rows={table} league={code} highlight={id} /> : <p className="empty">Puan durumu yok.</p>}
+        </section>
+      )}
+
+      {tab === "transfer" && (
+        <section className="card">
+          {trR.status === "rejected" && <p className="notice error">Transferler yüklenemedi.</p>}
+          {teamTransfers.length ? (
+            <TransferList items={teamTransfers} league={code} teamId={id} />
+          ) : (
+            trR.status === "fulfilled" && <p className="empty">Bu sezon kayıtlı transfer yok.</p>
+          )}
+        </section>
+      )}
 
       {tab === "maclar" && (
         <>

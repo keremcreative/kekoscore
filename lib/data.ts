@@ -18,6 +18,8 @@ export const getTeamSchedule = source.teamSchedule;
 export const getRoster = source.roster;
 export const getLeagueLogo = source.leagueLogo;
 export const getPlayer = source.playerProfile;
+export const getTransfers = source.transfers;
+export const getLeaders = source.leaders;
 
 /**
  * Türkiye takvimine göre [from, to] günlerinin maçları. ESPN günleri ABD saatine göre

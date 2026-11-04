@@ -6,16 +6,20 @@ import { MatchRow } from "@/components/MatchRow";
 import { StandingsTable } from "@/components/StandingsTable";
 import { Tabs } from "@/components/Tabs";
 import { LeagueIcon } from "@/components/LeagueIcon";
-import { getLeagueLogo, getScoreboardRange, getStandings } from "@/lib/data";
+import { getLeaders, getLeagueLogo, getScoreboardRange, getStandings, getTransfers } from "@/lib/data";
+import { TransferList } from "@/components/TransferList";
+import { TeamLogo } from "@/components/TeamLogo";
 import { fullDay, mondayOf, shiftDays, shortDate, ymd } from "@/lib/format";
 import { leagueByCode } from "@/lib/leagues";
-import type { Match, StandingRow } from "@/lib/types";
+import type { Leader, Match, StandingRow } from "@/lib/types";
 
 export const revalidate = 120;
 
 const TABS = [
   { key: "puan", label: "Puan durumu" },
   { key: "fikstur", label: "Fikstür" },
+  { key: "krallik", label: "Gol krallığı" },
+  { key: "transfer", label: "Transferler" },
 ];
 
 export default async function LeaguePage({
@@ -42,7 +46,15 @@ export default async function LeaguePage({
         <FavButton kind="league" refId={code} />
       </h1>
       <Tabs items={TABS} current={tab} base={base} />
-      {tab === "fikstur" ? <Fixtures code={code} week={Number(sp.hafta) || 0} /> : <Table code={code} />}
+      {tab === "fikstur" ? (
+        <Fixtures code={code} week={Number(sp.hafta) || 0} />
+      ) : tab === "krallik" ? (
+        <Leaders code={code} />
+      ) : tab === "transfer" ? (
+        <Transfers code={code} />
+      ) : (
+        <Table code={code} />
+      )}
     </>
   );
 }
@@ -106,5 +118,49 @@ async function Fixtures({ code, week }: { code: string; week: number }) {
         </section>
       ))}
     </>
+  );
+}
+
+async function Leaders({ code }: { code: string }) {
+  const data = await getLeaders(code).catch(() => null);
+  if (!data || (!data.goals.length && !data.assists.length)) return <div className="card empty">Bu lig için gol krallığı verisi yok.</div>;
+  const list = (title: string, items: Leader[], unit: string) =>
+    items.length > 0 && (
+      <section className="card">
+        <div className="section-title">{title}</div>
+        <ol className="leaders">
+          {items.map((l, i) => (
+            <li key={i}>
+              <span className="rk">{i + 1}</span>
+              <span className="nm">
+                {l.playerId ? <Link href={`/oyuncu/${code}/${l.playerId}`}>{l.player}</Link> : <span>{l.player}</span>}
+                {l.team && (
+                  <small>
+                    <TeamLogo team={l.team} size={13} /> {l.team.short}
+                  </small>
+                )}
+              </span>
+              <span className="val" title={unit}>{l.value}</span>
+            </li>
+          ))}
+        </ol>
+      </section>
+    );
+  return (
+    <>
+      {list("Gol krallığı", data.goals, "gol")}
+      {list("Asist krallığı", data.assists, "asist")}
+    </>
+  );
+}
+
+async function Transfers({ code }: { code: string }) {
+  const items = await getTransfers(code).catch(() => null);
+  if (!items) return <p className="notice error">Transferler yüklenemedi.</p>;
+  if (!items.length) return <div className="card empty">Bu lig için kayıtlı transfer yok.</div>;
+  return (
+    <section className="card">
+      <TransferList items={items.slice(0, 80)} league={code} />
+    </section>
   );
 }

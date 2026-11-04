@@ -5,6 +5,7 @@
 import type { LeagueLogo, Lineup, Match, MatchDetail, Player, PositionGroup, StandingRow, Team, TeamInfo, TeamSchedule } from "./types";
 import { shiftDays, ymd } from "./format";
 import { momentum, type Play } from "./momentum";
+import { rateLineups } from "./rating";
 
 const T = (id: string, name: string, abbr: string): Team => ({ id, name, short: name, abbr });
 
@@ -91,7 +92,16 @@ function lineup(t: Team, side: "home" | "away"): Lineup {
   return {
     side,
     formation: "4-3-3",
-    players: p.map((x, i) => ({ ...x, starter: i < 11, subbedOut: i === 9, subbedIn: i === 14 })),
+    players: p.map((x, i) => ({
+      ...x,
+      starter: i < 11,
+      subbedOut: i === 9,
+      subbedIn: i === 14,
+      stats: {
+        totalGoals: i === 10 ? 1 : 0, goalAssists: i === 8 ? 1 : 0, totalShots: (i * 7) % 4, shotsOnTarget: (i * 3) % 2,
+        saves: i === 0 ? 4 : 0, goalsConceded: 1, yellowCards: i === 5 ? 1 : 0, foulsCommitted: i % 3, foulsSuffered: (i * 5) % 3,
+      },
+    })),
   };
 }
 
@@ -150,7 +160,7 @@ export async function matchDetail(league: string, id: string): Promise<MatchDeta
           { label: "Faul", home: "9", away: "13" },
         ]
       : [],
-    lineups: [lineup(m.home.team, "home"), lineup(m.away.team, "away")],
+    lineups: started ? rateLineups([lineup(m.home.team, "home"), lineup(m.away.team, "away")], m.home.score, m.away.score) : [lineup(m.home.team, "home"), lineup(m.away.team, "away")],
     h2h,
   };
 }
@@ -222,4 +232,20 @@ export async function playerProfile(league: string, id: string): Promise<import(
       ],
     },
   };
+}
+
+export async function transfers(league: string): Promise<import("./types").Transfer[]> {
+  const ts = TEAMS[league] ?? [];
+  if (ts.length < 3) return [];
+  return [
+    { date: "2026-08-30T10:00Z", player: "Emre Yılmaz", playerId: `${ts[0].id}-9`, from: ts[2], to: ts[0], fee: "€12 mn" },
+    { date: "2026-08-12T10:00Z", player: "Can Demir", from: ts[0], to: ts[1], fee: "Kiralık" },
+    { date: "2026-07-05T10:00Z", player: "Mert Kaya", from: undefined, to: ts[0], fee: "Bonservissiz" },
+  ];
+}
+
+export async function leaders(league: string): Promise<import("./types").LeagueLeaders> {
+  const ts = TEAMS[league] ?? [];
+  const mk = (n: number) => ts.flatMap((t, i) => squad(t).slice(8, 10).map((p, j) => ({ player: p.name, playerId: p.id, team: t, value: Math.max(1, n - i - j * 2) }))).sort((a, b) => b.value - a.value).slice(0, 10);
+  return { goals: mk(11), assists: mk(6) };
 }

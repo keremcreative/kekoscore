@@ -2,6 +2,7 @@ import { initTz } from "@/lib/tz";
 import Link from "next/link";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { DateNav, type Filter } from "@/components/DateNav";
+import { SearchIcon } from "@/components/SearchBox";
 import { LeagueIcon } from "@/components/LeagueIcon";
 import { LiveHero, type Featured } from "@/components/LiveHero";
 import { MatchRow } from "@/components/MatchRow";
@@ -14,6 +15,7 @@ import { COLLAPSE_COOKIE, OPEN_COOKIE } from "@/lib/collapse";
 import { matchBigKind } from "@/lib/bigClubs";
 import type { Match } from "@/lib/types";
 import { cookies } from "next/headers";
+import { Fragment } from "react";
 
 export const dynamic = "force-dynamic";
 
@@ -60,8 +62,18 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const openSet = readSet(OPEN_COOKIE);
   const favTeams = new Set(favs.filter((f) => f.kind === "team").map((f) => f.ref));
   const favLeagues = new Set(favs.filter((f) => f.kind === "league").map((f) => f.ref));
-  sections.sort((a, b) => Number(favLeagues.has(b.league.code)) - Number(favLeagues.has(a.league.code)));
   const isFav = (code: string, m: Match) => favTeams.has(`${code}/${m.home.team.id}`) || favTeams.has(`${code}/${m.away.team.id}`);
+  // Takip edilenler üstte: favori ligler, ana ligler ve büyük kulüplerin / favori takımların oynadığı
+  // kupalar. Geri kalan ligler en altta, ülkeye göre alfabetik ve kapalı gelir.
+  const order = new Map(LEAGUES.map((l, i) => [l.code, i]));
+  const followed = (s: (typeof sections)[number]) =>
+    favLeagues.has(s.league.code) || s.league.tier === 1 || s.matches.some((m) => isFav(s.league.code, m) || !!matchBigKind(m));
+  const top = sections
+    .filter(followed)
+    .sort((a, b) => Number(favLeagues.has(b.league.code)) - Number(favLeagues.has(a.league.code)) || order.get(a.league.code)! - order.get(b.league.code)!);
+  const rest = sections
+    .filter((s) => !followed(s))
+    .sort((a, b) => a.league.country.localeCompare(b.league.country, "tr") || order.get(a.league.code)! - order.get(b.league.code)!);
   const favMatches = sections.flatMap((s) => s.matches.filter((m) => isFav(s.league.code, m))).sort((a, b) => a.date.localeCompare(b.date));
 
   const failed = results.filter((r) => r === null).length;
@@ -95,6 +107,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
     <>
       <AutoRefresh active={anyLive} />
       {isToday && <LiveHero items={featured.slice(0, 10)} logos={logos} />}
+      <Link href="/ara" className="search-box">
+        <SearchIcon /> Takım, lig veya ülke ara
+      </Link>
       <DateNav selected={date} filter={filter} />
       {failed === LEAGUES.length && <p className="notice error">Veri kaynağına ulaşılamadı. İnternet bağlantını kontrol et.</p>}
       {sections.length === 0 && failed < LEAGUES.length && (
@@ -112,11 +127,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
           ))}
         </section>
       )}
-      {sections.map(({ league, matches }) => {
-        // 3. seviye ligler varsayılan kapalı gelir (dokununca açılır ve hatırlanır)
-        const minor = league.tier === 3 && !favLeagues.has(league.code);
+      {[...top, ...rest].map(({ league, matches }, i) => {
+        // Takip edilmeyen ligler varsayılan kapalı gelir (dokununca açılır ve hatırlanır)
+        const minor = i >= top.length;
         const live = matches.filter((m) => m.state === "in").length;
         return (
+          <Fragment key={league.code}>
+          {i === top.length && i > 0 && <div className="others-head">Diğer ligler ve kupalar</div>}
           <LeagueSection
             key={league.code}
             code={league.code}
@@ -138,6 +155,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
               <MatchRow key={m.id} m={m} dayTag={dayTag(m, key)} />
             ))}
           </LeagueSection>
+          </Fragment>
         );
       })}
       <p className="foot">Kerem&apos;in Hayratıdır · Reklam yok, Pop-up yok</p>

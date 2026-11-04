@@ -12,26 +12,17 @@ function statusLabel(m: Match) {
   return kickoff(m.date);
 }
 
-function TeamLine({ s, done, me }: { s: Side; done: boolean; me: boolean }) {
-  const dim = done && s.winner === false;
-  return (
-    <div className={`team-line${s.winner ? " win" : ""}${dim ? " dim" : ""}${me ? " me" : ""}`}>
-      <TeamLogo team={s.team} />
-      <span className="team-name">{s.team.short}</span>
-      <span className="score">{s.score ?? ""}</span>
-    </div>
-  );
-}
-
 /**
  * Tek maç satırı. `teamId` verilirse (takım sayfası) tarih ve o takımın
  * sonucu (G/B/M) gösterilir.
  */
 export function MatchRow({ m, teamId, showDate, dayTag }: { m: Match; teamId?: string; showDate?: boolean; dayTag?: string }) {
   const live = m.state === "in";
+  const pre = m.state === "pre";
   // Beraberlikte kimse "kaybeden" olarak soluklaşmasın
   const done = m.state === "post" && (m.home.winner || m.away.winner) === true;
   const r = teamId ? resultFor(m, teamId) : undefined;
+  const cls = (s: Side) => `side${s.winner ? " win" : ""}${done && s.winner === false ? " dim" : ""}${s.team.id === teamId ? " me" : ""}`;
   return (
     <Link href={`/mac/${m.league}/${m.id}`} className={`match${live ? " is-live" : ""}`}>
       <span className={`status${live ? " live" : ""}`}>
@@ -39,10 +30,15 @@ export function MatchRow({ m, teamId, showDate, dayTag }: { m: Match; teamId?: s
         {!showDate && dayTag && !live && <span className="status-date">{dayTag}</span>}
         {statusLabel(m)}
       </span>
-      <div className="teams">
-        <TeamLine s={m.home} done={done} me={m.home.team.id === teamId} />
-        <TeamLine s={m.away} done={done} me={m.away.team.id === teamId} />
-      </div>
+      <span className={`${cls(m.home)} home`}>
+        <span className="team-name">{m.home.team.short}</span>
+        <TeamLogo team={m.home.team} size={18} />
+      </span>
+      <span className={`sc${pre ? " pre" : ""}`}>{pre ? "-" : `${m.home.score ?? 0} - ${m.away.score ?? 0}`}</span>
+      <span className={`${cls(m.away)} away`}>
+        <TeamLogo team={m.away.team} size={18} />
+        <span className="team-name">{m.away.team.short}</span>
+      </span>
       {r && <ResultBadge r={r} />}
     </Link>
   );

@@ -89,6 +89,10 @@ export interface LineupPlayer extends Player {
   starter: boolean;
   subbedIn?: boolean;
   subbedOut?: boolean;
+  /** ESPN maç istatistikleri (totalGoals, saves…) */
+  stats?: Record<string, number>;
+  /** Bizim hesapladığımız reyting (lib/rating.ts) */
+  rating?: number;
 }
 
 export interface Lineup {
@@ -142,4 +146,26 @@ export interface Coach {
   photo?: string;
   age?: number;
   nationality?: string;
+}
+
+export interface Transfer {
+  date: string;
+  player: string;
+  playerId?: string;
+  from?: Team;
+  to?: Team;
+  /** "Kiralık", "Bonservissiz", "Bedeli açıklanmadı" ya da ücret */
+  fee: string;
+}
+
+export interface Leader {
+  player: string;
+  playerId?: string;
+  team?: Team;
+  value: number;
+}
+
+export interface LeagueLeaders {
+  goals: Leader[];
+  assists: Leader[];
 }
