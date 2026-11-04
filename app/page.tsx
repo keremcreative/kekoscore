@@ -5,7 +5,7 @@ import { DateNav, type Filter } from "@/components/DateNav";
 import { LeagueIcon } from "@/components/LeagueIcon";
 import { LiveHero, type Featured } from "@/components/LiveHero";
 import { MatchRow } from "@/components/MatchRow";
-import { getLeagueLogos, getTrDays } from "@/lib/data";
+import { getLeagueLogos, getMatch, getTrDays } from "@/lib/data";
 import { parseYmd, shiftDays, ymd } from "@/lib/format";
 import { LEAGUES } from "@/lib/leagues";
 import { serverFavs } from "@/lib/favsServer";
@@ -84,6 +84,15 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
     .filter((f) => f.match.state === "pre" && ymd(new Date(f.match.date)) === today)
     .sort((a, b) => a.match.date.localeCompare(b.match.date));
   const featured = filter === "hepsi" ? [...live, ...done.slice(0, 4), ...next.slice(0, live.length ? 0 : 3)] : [];
+  // İlk birkaç canlı maça küçük momentum grafiği
+  await Promise.all(
+    featured
+      .filter((f) => f.match.state === "in")
+      .slice(0, 4)
+      .map(async (f) => {
+        f.momentum = await getMatch(f.league.code, f.match.id).then((d) => d.momentum).catch(() => undefined);
+      }),
+  );
 
   return (
     <>

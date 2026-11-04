@@ -4,10 +4,14 @@ import type { LeagueLogo, Match } from "@/lib/types";
 import { kickoff } from "@/lib/format";
 import { LeagueIcon } from "./LeagueIcon";
 import { TeamLogo } from "./TeamLogo";
+import { Momentum } from "./Momentum";
+import type { MomentumPoint } from "@/lib/momentum";
 
 export interface Featured {
   match: Match;
   league: League;
+  /** Canlı maçlarda küçük momentum grafiği */
+  momentum?: MomentumPoint[];
 }
 
 /** Ana sayfanın en üstündeki büyük kart(lar): canlı maçlar, yoksa günün sıradaki maçları */
@@ -15,7 +19,7 @@ export function LiveHero({ items, logos }: { items: Featured[]; logos: Record<st
   if (!items.length) return null;
   return (
     <div className={`hero-rail${items.length > 1 ? " multi" : ""}`}>
-      {items.map(({ match: m, league }) => {
+      {items.map(({ match: m, league, momentum }) => {
         const live = m.state === "in";
         return (
           <Link key={m.id} href={`/mac/${m.league}/${m.id}`} className={`hero-card${live ? " live" : ""}`}>
@@ -44,6 +48,7 @@ export function LiveHero({ items, logos }: { items: Featured[]; logos: Record<st
                 <span>{m.away.team.short}</span>
               </div>
             </div>
+            {live && momentum && <Momentum points={momentum} compact />}
           </Link>
         );
       })}

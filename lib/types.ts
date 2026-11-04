@@ -47,6 +47,9 @@ export interface MatchDetail extends Match {
   lineups: Lineup[];
   /** İki takımın birbirleriyle oynadığı son maçlar */
   h2h: Match[];
+  /** Canlı anlatım (eskiden yeniye) */
+  plays: import("./momentum").Play[];
+  momentum: import("./momentum").MomentumPoint[];
 }
 
 export interface StandingRow {

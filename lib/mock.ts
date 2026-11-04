@@ -4,6 +4,7 @@
  */
 import type { LeagueLogo, Lineup, Match, MatchDetail, Player, PositionGroup, StandingRow, Team, TeamInfo, TeamSchedule } from "./types";
 import { shiftDays, ymd } from "./format";
+import { momentum, type Play } from "./momentum";
 
 const T = (id: string, name: string, abbr: string): Team => ({ id, name, short: name, abbr });
 
@@ -103,8 +104,34 @@ export async function matchDetail(league: string, id: string): Promise<MatchDeta
     .filter((x) => x.id !== id && x.state === "post" && pair.has(x.home.team.id) && pair.has(x.away.team.id))
     .sort((a, b) => b.date.localeCompare(a.date));
   const started = m.state !== "pre";
+  const r = rng("pl" + id);
+  const upTo = m.state === "in" ? 67 : m.state === "post" ? 94 : 0;
+  const plays: Play[] = [{ minute: "1'", min: 1, kind: "period", text: "İlk yarı başladı." }];
+  const H = m.home.team.name, A = m.away.team.name;
+  for (let min = 2; min <= upTo; min++) {
+    const x = r();
+    if (x > 0.32) continue;
+    const side = r() < (min < 50 ? 0.62 : 0.4) ? "home" : "away";
+    const t = side === "home" ? H : A;
+    const who = squad(side === "home" ? m.home.team : m.away.team)[5 + Math.floor(r() * 6)].name;
+    const kinds: [Play["kind"], string][] = [
+      ["shot-on", `Kurtarış. ${who} (${t}) ceza sahası içinden sağ ayakla şut.`],
+      ["shot", `Şut dışarıda. ${who} (${t}) ceza sahası dışından sol ayakla şut.`],
+      ["corner", `Korner, ${t}.`],
+      ["foul", `Faul: ${who} (${t}).`],
+    ];
+    const [kind, text] = kinds[Math.floor(r() * kinds.length)];
+    plays.push({ minute: `${min}'`, min, kind, side, text });
+  }
+  if (upTo >= 12) plays.push({ minute: "12'", min: 12, kind: "goal", side: "home", text: `GOL! ${H}. ${squad(m.home.team)[9].name} (${H}) sağ ayakla sol alt köşeye.` });
+  if (upTo >= 61) plays.push({ minute: "61'", min: 61, kind: "goal", side: "away", text: `GOL! ${A}. ${squad(m.away.team)[8].name} (${A}) kafa vuruşu.` });
+  if (upTo >= 46) plays.push({ minute: "45'+2'", min: 47, kind: "period", text: "İlk yarı bitti." });
+  if (m.state === "post") plays.push({ minute: "90'+4'", min: 94, kind: "period", text: "Maç bitti." });
+  plays.sort((a, b) => a.min - b.min);
   return {
     ...m,
+    plays,
+    momentum: momentum(plays, m.state === "in" ? upTo : undefined),
     venue: "Örnek Stadyumu",
     events: started
       ? [

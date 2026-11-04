@@ -5,6 +5,7 @@
  * eksik veri sayfayı çökertmesin.
  */
 import { playerPhotos } from "./wiki";
+import { kindFromText, minuteNum, momentum, trText, type Play } from "./momentum";
 import type {
   EventKind,
   LineupPlayer,
@@ -225,10 +226,38 @@ export async function matchDetail(league: string, id: string): Promise<MatchDeta
     away: a?.statistics?.find((x: J) => x?.name === s?.name)?.displayValue ?? "-",
   }));
 
+  // Canlı anlatım: takım bilgisi yoksa metindeki "(Takım adı)" ya da "Corner, Takım." kalıbından
+  const names = (t: Team) => [t.name, t.short].filter(Boolean);
+  const sideOf = (c: J, text: string): Play["side"] => {
+    const tid = String(c?.play?.team?.id ?? c?.team?.id ?? "");
+    if (tid) return tid === homeId ? "home" : tid === base.away.team.id ? "away" : undefined;
+    const corner = text.match(/^Corner,\s*([^.]+)\./i)?.[1]?.trim();
+    for (const [side, t] of [["home", base.home.team], ["away", base.away.team]] as const) {
+      if (names(t).some((n) => text.includes(`(${n})`) || corner === n)) return side;
+    }
+    return undefined;
+  };
+  const plays: Play[] = (data?.commentary ?? [])
+    .map((c: J): Play | null => {
+      const text = String(c?.text ?? c?.play?.text ?? "").trim();
+      if (!text) return null;
+      const minute = String(c?.time?.displayValue ?? c?.play?.clock?.displayValue ?? "");
+      return { minute, min: minuteNum(minute), kind: kindFromText(text, c?.play?.type?.text), side: sideOf(c, text), text: trText(text) };
+    })
+    .filter(Boolean) as Play[];
+  plays.sort((a, b) => a.min - b.min);
+  // Anlatım yoksa önemli olaylardan kısa bir akış
+  const flow: Play[] = plays.length
+    ? plays
+    : evs.map((e) => ({ minute: e.minute, min: minuteNum(e.minute), kind: e.kind === "other" ? "other" : e.kind, side: e.side, text: e.text }));
+  const nowMin = base.state === "in" ? minuteNum(base.clock ?? "") : undefined;
+
   return {
     ...base,
     venue: data?.gameInfo?.venue?.fullName,
     events: evs,
+    plays: flow,
+    momentum: momentum(flow, nowMin),
     stats,
     lineups: lineups(data, homeId),
     h2h: h2h(data, league, base.home.team, base.away.team).filter((m) => m.id !== id),

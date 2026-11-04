@@ -508,3 +508,34 @@ a.player:hover, a.lp:hover { background: var(--surface-2); }
 .lineup-coach div { display: flex; align-items: center; gap: 8px; padding: 10px 14px; font-size: 13px; font-weight: 600; min-width: 0; }
 .lineup-coach div:last-child { flex-direction: row-reverse; text-align: right; }
 .lineup-coach small { display: block; font-size: 10px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+
+/* Momentum ve canlı anlatım */
+:root { --mom-h: #2f7cf6; --mom-a: #f08a24; }
+.momentum { padding: 4px 14px 12px; position: relative; }
+.momentum svg { display: block; width: 100%; height: 96px; }
+.momentum.compact { padding: 6px 0 0; }
+.momentum.compact svg { height: 34px; }
+.mom-h { fill: var(--mom-h); }
+.mom-a { fill: var(--mom-a); }
+.mom-axis { stroke: var(--line); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.mom-ht { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 3 3; opacity: .5; vector-effect: non-scaling-stroke; }
+.mom-legend { display: flex; justify-content: space-between; font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 4px; }
+.mom-legend .mh { color: var(--mom-h); }
+.mom-legend .ma { color: var(--mom-a); }
+.mom-plot { position: relative; }
+.mom-goal { position: absolute; transform: translateX(-50%); font-size: 11px; line-height: 1; }
+.mom-goal.home { top: -2px; }
+.mom-goal.away { bottom: -2px; }
+.mom-axis-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 2px; }
+.hero-card .momentum.compact .mom-axis { stroke: currentColor; opacity: .25; }
+.comm { list-style: none; margin: 0; padding: 0; }
+.comm-item { display: grid; grid-template-columns: 44px 24px 1fr; gap: 6px; align-items: start; padding: 10px 14px 10px 10px; border-top: 1px solid var(--line); font-size: 14px; line-height: 1.4; }
+.comm-item:first-child { border-top: 0; }
+.comm-min { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--muted); text-align: right; font-size: 13px; padding-top: 1px; }
+.comm-ico { text-align: center; }
+.comm-text small { display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.comm-item.s-home .comm-text small { color: var(--mom-h); }
+.comm-item.s-away .comm-text small { color: var(--mom-a); }
+.comm-item.k-foul, .comm-item.k-offside, .comm-item.k-other { color: var(--muted); }
+.comm-item.big { background: color-mix(in srgb, var(--accent-bg) 14%, transparent); font-weight: 700; }
+.comm-item.k-period { background: var(--surface-2); font-weight: 600; }

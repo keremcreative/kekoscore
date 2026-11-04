@@ -9,6 +9,8 @@ import { TeamLink } from "@/components/TeamLink";
 import { TeamLogo } from "@/components/TeamLogo";
 import { getCoach, getMatch } from "@/lib/data";
 import { PlayerPhoto } from "@/components/PlayerPhoto";
+import { Momentum } from "@/components/Momentum";
+import { Commentary } from "@/components/Commentary";
 import { kickoff, longDate } from "@/lib/format";
 import { leagueByCode } from "@/lib/leagues";
 import type { Coach, EventKind, Lineup, LineupPlayer, MatchDetail } from "@/lib/types";
@@ -61,6 +63,7 @@ export default async function MatchPage({
   const status = live ? m.clock || "Canlı" : m.state === "post" ? "Maç sonu" : "Başlamadı";
   const tabs = [
     { key: "ozet", label: "Özet" },
+    ...(m.plays.length ? [{ key: "anlatim", label: "Anlatım" }] : []),
     ...(m.lineups.length ? [{ key: "kadro", label: "Kadrolar" }] : []),
     ...(m.h2h.length ? [{ key: "h2h", label: "Aralarında" }] : []),
   ];
@@ -96,6 +99,18 @@ export default async function MatchPage({
 
       {tab === "ozet" && (
         <>
+          {(m.momentum.length > 0 || (live && m.plays.length > 0)) && (
+            <section className="card">
+              <div className="section-title">{live ? "Maçın gidişatı · canlı" : "Maçın gidişatı"}</div>
+              <Momentum points={m.momentum} plays={m.plays} home={m.home.team.short} away={m.away.team.short} />
+              {live && (
+                <>
+                  <Commentary plays={m.plays} home={m.home.team.short} away={m.away.team.short} limit={4} />
+                  <Link href={`/mac/${code}/${id}?sekme=anlatim`} className="card-link">Tüm anlatım ›</Link>
+                </>
+              )}
+            </section>
+          )}
           <PredictionCard league={code} matchId={m.id} state={m.state} home={m.home.team} away={m.away.team} score={{ home: m.home.score, away: m.away.score }} />
           <Poll matchId={`${code}:${m.id}`} state={m.state} home={m.home.team} away={m.away.team} />
           {m.events.length > 0 && (
@@ -146,6 +161,19 @@ export default async function MatchPage({
       )}
 
       {tab === "kadro" && <Lineups m={m} coaches={coaches} />}
+
+      {tab === "anlatim" && (
+        <>
+          {m.momentum.length > 0 && (
+            <section className="card">
+              <Momentum points={m.momentum} plays={m.plays} home={m.home.team.short} away={m.away.team.short} />
+            </section>
+          )}
+          <section className="card">
+            <Commentary plays={m.plays} home={m.home.team.short} away={m.away.team.short} />
+          </section>
+        </>
+      )}
 
       {tab === "h2h" && (
         <section className="card">
