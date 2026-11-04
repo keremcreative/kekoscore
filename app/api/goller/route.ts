@@ -7,13 +7,17 @@ import type { Match } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 /** Hatırlatma, maçın başlamasına bu kadar dakika kala gider */
 const REMIND_MIN = 30;
 
-/** Büyük kulüp taraması yapılan ligler: ana + önemli ligler (kadın ligleri hariç) */
-const SCAN = LEAGUES.filter((l) => (l.tier ?? 3) <= 2 && l.group !== "Kadınlar").map((l) => l.code);
+/**
+ * Büyük kulüp taraması yapılan ligler: ana ligler, Avrupa kupaları ve büyük ülkelerin kupaları.
+ * Büyük kulüpler başka yerde oynamıyor; ESPN'e gereksiz istek gidip tarama 30 sn'yi aşmasın.
+ * Favori takımların ligleri ayrıca eklenir.
+ */
+const SCAN = LEAGUES.filter((l) => l.group !== "Kadınlar" && (l.tier === 1 || (l.tier === 2 && l.group === "Kupalar"))).map((l) => l.code);
 
 interface Job {
   key: string;
