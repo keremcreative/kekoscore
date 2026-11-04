@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { compareLeagues } from "@/lib/leagues";
 import { points } from "@/lib/predict";
 import { supabase, supabaseConfigured } from "@/lib/supabase";
 import type { Match, MatchState, Team } from "@/lib/types";
@@ -179,6 +180,8 @@ export function PredictBoard({ items, open }: { items: BoardMatch[]; open: strin
     if (!g) groups.push((g = { league: i.league, name: i.leagueName, flag: i.flag, logo: i.logo, list: [] }));
     g.list.push(i);
   }
+  // Süper Lig, 5 büyük lig, sonra diğerleri A-Z
+  groups.sort((a, b) => compareLeagues(a.league, b.league));
   return (
     <>
       <p className="pred-progress">{done}/{items.length} maça tahmin yaptın</p>
