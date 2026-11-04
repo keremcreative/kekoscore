@@ -37,26 +37,23 @@ type J = any;
 const MAX_PARALLEL = 24;
 let active = 0;
 const queue: (() => void)[] = [];
-/** Öncelikli olmayan istekler (lig logoları) sırada skorların arkasında bekler */
-const lowQueue: (() => void)[] = [];
-async function slot<T>(fn: () => Promise<T>, low = false): Promise<T> {
-  if (active >= MAX_PARALLEL || (low && queue.length)) await new Promise<void>((r) => (low ? lowQueue : queue).push(r));
+async function slot<T>(fn: () => Promise<T>): Promise<T> {
+  if (active >= MAX_PARALLEL) await new Promise<void>((r) => queue.push(r));
   active++;
   try {
     return await fn();
   } finally {
     active--;
-    (queue.shift() ?? lowQueue.shift())?.();
+    queue.shift()?.();
   }
 }
 
-async function get(url: string, revalidate: number, ms = 8000, low = false): Promise<J> {
+async function get(url: string, revalidate: number): Promise<J> {
   let last: unknown;
-  // Zaman aşımı ya da 5xx'te bir kez daha dene. Süreyi kısaltmayın: ESPN'in tarih aralığı
-  // sorguları birkaç saniye sürebiliyor; 3,5 sn'ye indirince bütün ligler düşmüştü.
+  // Zaman aşımı ya da 5xx'te bir kez daha dene
   for (let i = 0; i < 2; i++) {
     try {
-      const res = await slot(() => fetch(url, { next: { revalidate }, headers: { accept: "application/json" }, signal: AbortSignal.timeout(ms) }), low);
+      const res = await slot(() => fetch(url, { next: { revalidate }, headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) }));
       if (res.ok) return await res.json();
       last = new Error(`ESPN ${res.status}: ${url}`);
       if (res.status < 500 && res.status !== 429) break;
@@ -134,7 +131,7 @@ export async function scoreboardRange(league: string, from: string, to: string, 
   try {
     return events(await get(`${SITE}/${league}/scoreboard?dates=${from}-${to}&limit=200`, revalidate), league);
   } catch (e) {
-    // Aralık sorgusu reddedilir ya da yetişmezse günleri tek tek çek
+    // Aralık sorgusu reddedilirse günleri tek tek çek
     const days: string[] = [];
     const d = new Date(`${from.slice(0, 4)}-${from.slice(4, 6)}-${from.slice(6, 8)}T12:00:00Z`);
     const end = `${to.slice(0, 4)}-${to.slice(4, 6)}-${to.slice(6, 8)}`;
@@ -371,7 +368,7 @@ export async function roster(league: string, id: string): Promise<Player[]> {
 
 /** Lig logoları (açık ve koyu tema), scoreboard yanıtının "leagues" alanından */
 export async function leagueLogo(league: string): Promise<LeagueLogo> {
-  const data = await get(`${SITE}/${league}/scoreboard`, 86400, 8000, true);
+  const data = await get(`${SITE}/${league}/scoreboard`, 86400);
   const logos: J[] = data?.leagues?.[0]?.logos ?? [];
   const has = (l: J, r: string) => (l?.rel ?? []).includes(r);
   return {

@@ -1,5 +1,4 @@
 import { cookies } from "next/headers";
-import { unstable_cache } from "next/cache";
 import { Tabs } from "@/components/Tabs";
 import { Leaderboard } from "@/components/social/Leaderboard";
 import { PredictBoard, type BoardMatch } from "@/components/social/Predict";
@@ -10,13 +9,6 @@ import { initTz } from "@/lib/tz";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Tahmin · kekoscore" };
-
-/** Önümüzdeki haftanın maçları tek önbellek kaydında (2 dk); alınamayan lig null */
-const weekMatches = unstable_cache(
-  async (from: string, to: string) => Promise.all(LEAGUES.map((l) => getScoreboardRange(l.code, from, to).catch(() => null))),
-  ["tahmin-hafta-v1", process.env.DATA_SOURCE ?? "espn"],
-  { revalidate: 120 },
-);
 
 const TABS = [
   { key: "maclar", label: "Tahmin yap" },
@@ -32,11 +24,11 @@ export default async function PredictPage({ searchParams }: { searchParams: Prom
   if (tab === "maclar") {
     const now = new Date();
     const from = ymd(now), to = ymd(shiftDays(now, 6));
-    const [rs, logos] = await Promise.all([weekMatches(from, to), getLeagueLogosCached()]);
+    const [rs, logos] = await Promise.all([Promise.allSettled(LEAGUES.map((l) => getScoreboardRange(l.code, from, to))), getLeagueLogosCached()]);
     items = LEAGUES.flatMap((l, i) => {
       const r = rs[i];
-      return r
-        ? r.filter((m) => m.state === "pre" && new Date(m.date) > now && !/postp|ertel|cancel/i.test(m.detail)).map((match) => ({ league: l.code, leagueName: l.name, flag: l.flag, logo: logos[l.code], match }))
+      return r.status === "fulfilled"
+        ? r.value.filter((m) => m.state === "pre" && new Date(m.date) > now && !/postp|ertel|cancel/i.test(m.detail)).map((match) => ({ league: l.code, leagueName: l.name, flag: l.flag, logo: logos[l.code], match }))
         : [];
     })
       .sort((a, b) => a.match.date.localeCompare(b.match.date))

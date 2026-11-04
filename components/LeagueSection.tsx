@@ -1,5 +1,5 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 
 import { COLLAPSE_COOKIE } from "@/lib/collapse";
 
@@ -12,7 +12,6 @@ export function LeagueSection({
   cookie = COLLAPSE_COOKIE,
   storeOpen = false,
   headToggles = false,
-  load,
 }: {
   code: string;
   initiallyClosed: boolean;
@@ -24,21 +23,11 @@ export function LeagueSection({
   storeOpen?: boolean;
   /** Başlığın tamamına dokununca da aç/kapa */
   headToggles?: boolean;
-  /** Kapalı gelen kartta maçlar sayfayla gelmez; ilk açılışta bununla sunucudan istenir */
-  load?: () => Promise<React.ReactNode>;
 }) {
   const [closed, setClosed] = useState(initiallyClosed);
-  const [rows, setRows] = useState<React.ReactNode>(null);
-  const [loading, startLoading] = useTransition();
   function toggle() {
     const next = !closed;
     setClosed(next);
-    if (!next && load && rows === null && !children) {
-      startLoading(async () => {
-        const r = await load().catch(() => <p className="ls-empty">Maçlar yüklenemedi.</p>);
-        setRows(r ?? <p className="ls-empty">Maç yok.</p>);
-      });
-    }
     const m = document.cookie.match(new RegExp(`(?:^|;\\s*)${cookie}=([^;]*)`));
     const set = new Set((m ? decodeURIComponent(m[1]) : "").split(",").filter(Boolean));
     if (next !== storeOpen) set.add(code);
@@ -62,7 +51,7 @@ export function LeagueSection({
         {head}
       </div>
       <div className="ls-body" aria-hidden={closed}>
-        <div className="ls-inner">{children || rows || (loading && <p className="ls-empty">Yükleniyor…</p>)}</div>
+        <div className="ls-inner">{children}</div>
       </div>
     </section>
   );
