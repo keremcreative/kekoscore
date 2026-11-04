@@ -86,9 +86,9 @@ export async function scoreboard(league: string, yyyymmdd: string): Promise<Matc
 }
 
 /** Tarih aralığındaki maçlar (YYYYMMDD-YYYYMMDD) */
-export async function scoreboardRange(league: string, from: string, to: string): Promise<Match[]> {
+export async function scoreboardRange(league: string, from: string, to: string, revalidate = 60): Promise<Match[]> {
   try {
-    return events(await get(`${SITE}/${league}/scoreboard?dates=${from}-${to}&limit=200`, 60), league);
+    return events(await get(`${SITE}/${league}/scoreboard?dates=${from}-${to}&limit=200`, revalidate), league);
   } catch (e) {
     // Aralık sorgusu reddedilirse günleri tek tek çek
     const days: string[] = [];

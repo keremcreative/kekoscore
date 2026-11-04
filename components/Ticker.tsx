@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { getScoreboard } from "@/lib/data";
 import { kickoff, shiftDays, ymd } from "@/lib/format";
-import { LEAGUES } from "@/lib/leagues";
+import { MAIN_LEAGUES } from "@/lib/leagues";
 import type { Match } from "@/lib/types";
 import { TeamLogo } from "./TeamLogo";
 import { Marquee } from "./Marquee";
@@ -18,7 +18,7 @@ export function liveLabel(m: Match) {
 export async function Ticker() {
   const now = new Date();
   const days = [ymd(shiftDays(now, -1)), ymd(now)];
-  const rs = await Promise.allSettled(LEAGUES.flatMap((l) => days.map((d) => getScoreboard(l.code, d))));
+  const rs = await Promise.allSettled(MAIN_LEAGUES.flatMap((l) => days.map((d) => getScoreboard(l.code, d))));
   const seen = new Set<string>();
   const all = rs.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter((m) => !seen.has(m.id) && seen.add(m.id));
   const t = now.getTime();

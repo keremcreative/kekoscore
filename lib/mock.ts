@@ -63,7 +63,7 @@ export async function scoreboard(league: string, yyyymmdd: string): Promise<Matc
   return season(league).filter((m) => dayOf(m) === yyyymmdd);
 }
 
-export async function scoreboardRange(league: string, from: string, to: string): Promise<Match[]> {
+export async function scoreboardRange(league: string, from: string, to: string, _revalidate?: number): Promise<Match[]> {
   return season(league).filter((m) => dayOf(m) >= from && dayOf(m) <= to);
 }
 

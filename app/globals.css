@@ -447,3 +447,9 @@ a.player:hover, a.lp:hover { background: var(--surface-2); }
 .pline.done .pline-time { color: var(--accent); }
 .ls-head.tap { cursor: pointer; }
 .ls-inner > .pline:first-child { border-top: 0; }
+
+/* Ana sayfa: biten filtresi ve kapalı ligde canlı sayısı */
+.datenav .done-toggle.on { background: var(--accent-bg); border-color: var(--accent-bg); color: #16181c; }
+.card-head .count.live { display: inline-grid; place-items: center; height: 20px; padding: 0 7px; border-radius: 999px; background: var(--live); color: #fff; font-size: 11px; font-weight: 700; }
+.league-sec.closed .card-head .count.live { background: var(--live); color: #fff; }
+.group-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 4px 8px; }

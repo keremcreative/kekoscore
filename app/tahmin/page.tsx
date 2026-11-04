@@ -4,7 +4,7 @@ import { Leaderboard } from "@/components/social/Leaderboard";
 import { PredictBoard, type BoardMatch } from "@/components/social/Predict";
 import { getLeagueLogos, getScoreboardRange } from "@/lib/data";
 import { kickoff, shiftDays, shortDate, ymd } from "@/lib/format";
-import { LEAGUES } from "@/lib/leagues";
+import { PREDICT_LEAGUES as LEAGUES } from "@/lib/leagues";
 import { initTz } from "@/lib/tz";
 
 export const dynamic = "force-dynamic";

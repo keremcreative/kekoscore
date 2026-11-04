@@ -27,7 +27,7 @@ function TeamLine({ s, done, me }: { s: Side; done: boolean; me: boolean }) {
  * Tek maç satırı. `teamId` verilirse (takım sayfası) tarih ve o takımın
  * sonucu (G/B/M) gösterilir.
  */
-export function MatchRow({ m, teamId, showDate }: { m: Match; teamId?: string; showDate?: boolean }) {
+export function MatchRow({ m, teamId, showDate, dayTag }: { m: Match; teamId?: string; showDate?: boolean; dayTag?: string }) {
   const live = m.state === "in";
   // Beraberlikte kimse "kaybeden" olarak soluklaşmasın
   const done = m.state === "post" && (m.home.winner || m.away.winner) === true;
@@ -36,6 +36,7 @@ export function MatchRow({ m, teamId, showDate }: { m: Match; teamId?: string; s
     <Link href={`/mac/${m.league}/${m.id}`} className={`match${live ? " is-live" : ""}`}>
       <span className={`status${live ? " live" : ""}`}>
         {showDate && !live && <span className="status-date">{shortDate(m.date)}</span>}
+        {!showDate && dayTag && !live && <span className="status-date">{dayTag}</span>}
         {statusLabel(m)}
       </span>
       <div className="teams">
