@@ -1,5 +1,6 @@
 import { initTz } from "@/lib/tz";
 import Link from "next/link";
+import { Suspense } from "react";
 import { FavButton } from "@/components/social/FavButton";
 import { notFound } from "next/navigation";
 import { Form } from "@/components/Form";
@@ -66,7 +67,6 @@ export default async function TeamPage({
     .find((t) => t.id === id);
   const team: Team | undefined = info?.team ?? row?.team ?? fromMatches;
   if (!team) return <p className="notice error">Takım bilgisi yüklenemedi.</p>;
-  const coach = await getCoach(code, team).catch(() => undefined);
 
   // İstatistikler yalnızca bu ligin maçlarından
   const leaguePast = sched.past.filter((m) => m.league === code);
@@ -90,16 +90,10 @@ export default async function TeamPage({
         <FavButton kind="team" refId={`${code}/${team.id}`} />
       </section>
 
-      {coach && (
-        <section className="card coach">
-          <PlayerPhoto src={coach.photo} name={coach.name} size={44} />
-          <span className="coach-txt">
-            <small>Teknik direktör</small>
-            <b>{coach.name}</b>
-          </span>
-          <span className="coach-meta">{[coach.nationality, coach.age && `${coach.age} yaş`].filter(Boolean).join(" · ")}</span>
-        </section>
-      )}
+      {/* Teknik direktör Wikidata'dan birkaç istekle bulunuyor; sayfa onu beklemeden açılsın */}
+      <Suspense>
+        <CoachCard league={code} team={team} />
+      </Suspense>
 
       <Tabs items={TABS} current={tab} base={base} />
 
@@ -295,4 +289,19 @@ function around(rows: StandingRow[], row: StandingRow) {
   const i = rows.indexOf(row);
   const start = Math.max(0, Math.min(i - 2, rows.length - 5));
   return rows.slice(start, start + 5);
+}
+
+async function CoachCard({ league, team }: { league: string; team: Team }) {
+  const coach = await getCoach(league, team).catch(() => undefined);
+  if (!coach) return null;
+  return (
+    <section className="card coach">
+      <PlayerPhoto src={coach.photo} name={coach.name} size={44} />
+      <span className="coach-txt">
+        <small>Teknik direktör</small>
+        <b>{coach.name}</b>
+      </span>
+      <span className="coach-meta">{[coach.nationality, coach.age && `${coach.age} yaş`].filter(Boolean).join(" · ")}</span>
+    </section>
+  );
 }

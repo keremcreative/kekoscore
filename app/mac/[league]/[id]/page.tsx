@@ -72,7 +72,11 @@ export default async function MatchPage({
   // Teknik direktörler: kadro sekmesinde ve maç öncesi özette
   const coaches: (Coach | undefined)[] =
     tab === "kadro" || m.state === "pre"
-      ? await Promise.all([getCoach(code, m.home.team).catch(() => undefined), getCoach(code, m.away.team).catch(() => undefined)])
+      ? // Wikidata yavaş kalırsa sayfa teknik direktörsüz açılır (yanıt önbelleğe girer, sonraki açılışta görünür)
+        await Promise.race([
+          Promise.all([getCoach(code, m.home.team).catch(() => undefined), getCoach(code, m.away.team).catch(() => undefined)]),
+          new Promise<(Coach | undefined)[]>((r) => setTimeout(() => r([]), 2500)),
+        ])
       : [];
 
   return (

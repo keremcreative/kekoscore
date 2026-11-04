@@ -6,7 +6,7 @@ import { MatchRow } from "@/components/MatchRow";
 import { StandingsTable } from "@/components/StandingsTable";
 import { Tabs } from "@/components/Tabs";
 import { LeagueIcon } from "@/components/LeagueIcon";
-import { getLeaders, getLeagueLogo, getScoreboardRange, getStandings, getTransfers } from "@/lib/data";
+import { getLeaders, getLeagueLogosCached, getScoreboardRange, getStandings, getTransfers } from "@/lib/data";
 import { TransferList } from "@/components/TransferList";
 import { TeamLogo } from "@/components/TeamLogo";
 import { fullDay, mondayOf, shiftDays, shortDate, ymd } from "@/lib/format";
@@ -36,7 +36,8 @@ export default async function LeaguePage({
   const league = leagueByCode(code);
   if (!league) notFound();
   const base = `/lig/${code}`;
-  const logo = await getLeagueLogo(code).catch(() => undefined);
+  // Logo, günde bir yenilenen tek kayıttan: ayrı bir ESPN isteği beklenmesin
+  const logo = (await getLeagueLogosCached().catch(() => undefined))?.[code];
 
   return (
     <>

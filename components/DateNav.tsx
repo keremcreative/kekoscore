@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { parseYmd, shiftDays, ymd } from "@/lib/format";
 
-export type Filter = "hepsi" | "canli" | "biten";
+import type { Filter } from "@/lib/homeDay";
+export type { Filter };
 
 export function DateNav({ selected, filter }: { selected: Date; filter: Filter }) {
   const today = ymd(new Date());
