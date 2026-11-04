@@ -33,13 +33,13 @@ export default async function Leagues() {
   const featured = LEAGUES.filter((l) => l.group === "Öne çıkanlar");
   const intl = men.filter((l) => INTL.has(l.country));
 
-  // Ülkeler: Türkiye en başta, gerisi alfabetik; her ülkenin ligleri önem sırasıyla
+  // Ülkeler popülerlik sırasıyla (Map ekleme sırası = LEAGUES sırası): Türkiye, İngiltere, İspanya…
   const byCountry = new Map<string, League[]>();
   for (const l of men) {
     if (INTL.has(l.country)) continue;
     byCountry.set(l.country, [...(byCountry.get(l.country) ?? []), l]);
   }
-  const countries = [...byCountry.keys()].sort((a, b) => (a === "Türkiye" ? -1 : b === "Türkiye" ? 1 : a.localeCompare(b, "tr")));
+  const countries = [...byCountry.keys()];
 
   return (
     <>

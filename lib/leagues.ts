@@ -16,8 +16,8 @@ const block = (tier: 1 | 2 | 3, group: string, rows: Row[]): League[] =>
   rows.map(([code, name, country, flag]) => ({ code, name, country, flag, tier, group }));
 
 /**
- * Ana sayfada ve Ligler sayfasında bu sırayla gösterilir: önce Süper Lig, sonra büyük 5 lig,
- * sonra Avrupa kupaları ve geri kalanlar önem sırasına göre. Kodlar ESPN'in lig kodlarıdır.
+ * Ana sayfada, tahminde ve Ligler sayfasında bu sırayla (popülerliğe göre) gösterilir: önce Süper Lig,
+ * sonra büyük 5 lig, Avrupa kupaları, milli turnuvalar, sonra en çok izlenenden aza diğer ligler. Kodlar ESPN'in lig kodlarıdır.
  */
 export const LEAGUES: League[] = [
   ...block(1, "Öne çıkanlar", [
@@ -31,21 +31,21 @@ export const LEAGUES: League[] = [
     ["uefa.europa", "Avrupa Ligi", "UEFA", "🇪🇺"],
     ["uefa.europa.conf", "Konferans Ligi", "UEFA", "🇪🇺"],
   ]),
-  ...block(1, "Dünya", [
-    ["conmebol.libertadores", "Copa Libertadores", "Güney Amerika", "🌎"],
-    ["bra.1", "Brasileirão", "Brezilya", "🇧🇷"],
-    ["ksa.1", "Saudi Pro League", "Suudi Arabistan", "🇸🇦"],
-    ["arg.1", "Liga Profesional", "Arjantin", "🇦🇷"],
-    ["usa.1", "MLS", "ABD", "🇺🇸"],
-    ["ned.1", "Eredivisie", "Hollanda", "🇳🇱"],
-    ["por.1", "Liga Portugal", "Portekiz", "🇵🇹"],
-    ["mex.1", "Liga MX", "Meksika", "🇲🇽"],
-  ]),
   ...block(1, "Milli takımlar", [
     ["fifa.world", "Dünya Kupası", "FIFA", "🌍"],
     ["uefa.euro", "Avrupa Şampiyonası", "UEFA", "🇪🇺"],
     ["conmebol.america", "Copa América", "CONMEBOL", "🌎"],
     ["caf.nations", "Afrika Uluslar Kupası", "CAF", "🌍"],
+  ]),
+  ...block(1, "Dünya", [
+    ["conmebol.libertadores", "Copa Libertadores", "Güney Amerika", "🌎"],
+    ["por.1", "Liga Portugal", "Portekiz", "🇵🇹"],
+    ["ned.1", "Eredivisie", "Hollanda", "🇳🇱"],
+    ["ksa.1", "Saudi Pro League", "Suudi Arabistan", "🇸🇦"],
+    ["bra.1", "Brasileirão", "Brezilya", "🇧🇷"],
+    ["usa.1", "MLS", "ABD", "🇺🇸"],
+    ["arg.1", "Liga Profesional", "Arjantin", "🇦🇷"],
+    ["mex.1", "Liga MX", "Meksika", "🇲🇽"],
   ]),
 ];
 
@@ -60,12 +60,11 @@ export const PREDICT_LEAGUES = LEAGUES.filter((l) => (l.tier ?? 3) <= 2);
 /** Ligler sayfasındaki grup sırası */
 export const LEAGUE_GROUPS = ["Öne çıkanlar", "Kupalar", "Avrupa", "Dünya", "Milli takımlar", "Kadınlar"];
 
-/** Her zaman en üstte duran ligler (bu sırayla): Süper Lig, sonra 5 büyük lig */
-export const CORE_LEAGUES = ["tur.1", "eng.1", "esp.1", "ita.1", "ger.1", "fra.1"];
-/** Lig sıralaması: önce CORE_LEAGUES, sonra diğerleri ülkeye ve ada göre A-Z (ana sayfayla aynı) */
+/**
+ * Lig sıralaması (ana sayfa, tahmin…): popülerliğe göre, LEAGUES listesindeki sırayla.
+ * Süper Lig, 5 büyük lig, Avrupa kupaları, milli turnuvalar, sonra diğer ligler.
+ */
+const RANK = new Map(LEAGUES.map((l, i) => [l.code, i]));
 export function compareLeagues(a: string, b: string): number {
-  const ia = CORE_LEAGUES.indexOf(a), ib = CORE_LEAGUES.indexOf(b);
-  if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
-  const la = BY_CODE.get(a), lb = BY_CODE.get(b);
-  return (la?.country ?? "").localeCompare(lb?.country ?? "", "tr") || (la?.name ?? a).localeCompare(lb?.name ?? b, "tr");
+  return (RANK.get(a) ?? 999) - (RANK.get(b) ?? 999);
 }
