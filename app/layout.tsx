@@ -12,14 +12,12 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "kekoscore",
   description: "Reklamsız, sade canlı skor uygulaması",
-  appleWebApp: { capable: true, title: "kekoscore", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "kekoscore", statusBarStyle: "black-translucent" },
 };
 
 export const viewport: Viewport = {
-  themeColor: [
-    { media: "(prefers-color-scheme: dark)", color: "#0e1013" },
-    { media: "(prefers-color-scheme: light)", color: "#f4f2ee" },
-  ],
+  themeColor: "#0e1013",
+  colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",

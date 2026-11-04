@@ -194,7 +194,7 @@ export function PredictBoard({ items, open }: { items: BoardMatch[]; open: strin
             <div className="card-head">
             {g.logo?.dark || g.logo?.light ? (
               <picture>
-                {g.logo.dark && <source srcSet={g.logo.dark} media="(prefers-color-scheme: dark)" />}
+                {g.logo.dark && <source srcSet={g.logo.dark} />}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={g.logo.light ?? g.logo.dark} alt="" width={20} height={20} />
               </picture>
