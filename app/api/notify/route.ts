@@ -31,8 +31,12 @@ export async function POST(req: Request) {
 
   const [{ data: who }, { data: subs }] = await Promise.all([
     admin.from("profiles").select("username").eq("id", msg.user_id).maybeSingle(),
-    admin.from("push_subscriptions").select("endpoint, p256dh, auth").neq("user_id", msg.user_id),
+    admin.from("push_subscriptions").select("endpoint, p256dh, auth, user_id").neq("user_id", msg.user_id),
   ]);
+  // Sohbet bildirimini kapatanları çıkar (tablo yoksa herkes açık sayılır)
+  const { data: off } = await admin.from("notif_prefs").select("user_id").eq("chat", false);
+  const muted = new Set((off ?? []).map((r) => r.user_id as string));
+  const targets = (subs ?? []).filter((s) => !muted.has(s.user_id));
 
   webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:kekoscore@example.com", PUB, PRIV);
   const payload = JSON.stringify({
@@ -44,7 +48,7 @@ export async function POST(req: Request) {
 
   const dead: string[] = [];
   const results = await Promise.allSettled(
-    (subs ?? []).map((s) =>
+    targets.map((s) =>
       webpush
         .sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 3600, urgency: "high" })
         .catch((e: { statusCode?: number }) => {

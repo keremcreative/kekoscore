@@ -1,110 +1,154 @@
-import { createClient } from "@supabase/supabase-js";
-import webpush from "web-push";
-import { getScoreboard } from "@/lib/data";
+import { getScoreboardRange } from "@/lib/data";
 import { shiftDays, ymd } from "@/lib/format";
+import { LEAGUES, leagueByCode } from "@/lib/leagues";
+import { matchBigKind } from "@/lib/bigClubs";
+import { admin, claim, loadPrefs, sendAll, type Payload, type Sub } from "@/lib/pushServer";
 import type { Match } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 30;
 
-const URL_ = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SECRET = process.env.SUPABASE_SECRET_KEY;
-const PUB = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const PRIV = process.env.VAPID_PRIVATE_KEY;
-const CRON = process.env.CRON_SECRET;
+/** Hatırlatma, maçın başlamasına bu kadar dakika kala gider */
+const REMIND_MIN = 30;
 
-interface Sub {
-  endpoint: string;
-  p256dh: string;
-  auth: string;
-  user_id: string;
+/** Büyük kulüp taraması yapılan ligler: ana + önemli ligler (kadın ligleri hariç) */
+const SCAN = LEAGUES.filter((l) => (l.tier ?? 3) <= 2 && l.group !== "Kadınlar").map((l) => l.code);
+
+interface Job {
+  key: string;
+  users: Set<string>;
+  payload: Payload;
 }
 
 /**
- * Favori takım gol bildirimi. Supabase'deki zamanlayıcı (pg_cron) bunu dakikada bir çağırır.
- * Favori takımı olan ve bildirimi açık kullanıcıların maçlarını ESPN'den okur, skoru bir
- * önceki kontrolle (goal_state) karşılaştırır, golü atan takımı favorileyenlere bildirim yollar.
+ * Supabase'deki zamanlayıcı (pg_cron) bunu dakikada bir çağırır. Gönderdikleri:
+ *  - Büyük kulüplerin (Türk büyükleri / Avrupa devleri) ve favori takımların maçlarından 30 dk önce hatırlatma
+ *  - Favori takım: maç başladı, gol, maç sonu
+ * Her kullanıcı Favoriler > Bildirimler'den hangilerini istediğini seçer.
  */
 async function run(req: Request) {
-  if (!URL_ || !SECRET || !PUB || !PRIV || !CRON) return Response.json({ skipped: "ayarlı değil" });
+  const CRON = process.env.CRON_SECRET;
+  const sb = admin();
+  if (!sb || !CRON) return Response.json({ skipped: "ayarlı değil" });
   const given = req.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ?? new URL(req.url).searchParams.get("key");
   if (given !== CRON) return new Response("Yetkisiz", { status: 401 });
 
-  const sb = createClient(URL_, SECRET, { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: favs } = await sb.from("favorites").select("user_id, ref").eq("kind", "team");
-  if (!favs?.length) return Response.json({ checked: 0 });
-  const { data: subsRaw } = await sb.from("push_subscriptions").select("endpoint, p256dh, auth, user_id").in("user_id", [...new Set(favs.map((f) => f.user_id))]);
+  const { data: subsRaw } = await sb.from("push_subscriptions").select("endpoint, p256dh, auth, user_id");
   const subs = (subsRaw ?? []) as Sub[];
   if (!subs.length) return Response.json({ checked: 0 });
-  const withSubs = new Set(subs.map((s) => s.user_id));
+  const userIds = [...new Set(subs.map((s) => s.user_id))];
+  const [prefs, { data: favs }] = await Promise.all([
+    loadPrefs(sb, userIds),
+    sb.from("favorites").select("user_id, ref").eq("kind", "team").in("user_id", userIds),
+  ]);
+
   const fans = new Map<string, Set<string>>(); // "lig/takımId" -> kullanıcılar
-  for (const f of favs) {
-    if (!withSubs.has(f.user_id)) continue;
+  for (const f of favs ?? []) {
+    if (!prefs.get(f.user_id)?.fav) continue;
     if (!fans.has(f.ref)) fans.set(f.ref, new Set());
     fans.get(f.ref)!.add(f.user_id);
   }
-  const leagues = [...new Set([...fans.keys()].map((r) => r.slice(0, r.lastIndexOf("/"))))];
+  const bigTr = new Set(userIds.filter((u) => prefs.get(u)?.big_tr));
+  const bigEu = new Set(userIds.filter((u) => prefs.get(u)?.big_eu));
+  const favLeagues = [...fans.keys()].map((r) => r.slice(0, r.lastIndexOf("/")));
+  const leagues = [...new Set([...SCAN, ...favLeagues])];
 
-  // Dün + bugün (gece yarısını aşan maçlar için), yalnızca favori takımların maçları
+  // Dün, bugün, yarın (Türkiye ve ABD günlerinin hepsini kapsasın)
   const now = new Date();
-  const days = [ymd(shiftDays(now, -1)), ymd(now)];
-  const rs = await Promise.allSettled(leagues.flatMap((l) => days.map((d) => getScoreboard(l, d).then((ms) => ms.map((m) => ({ ...m, league: l }))))));
+  const t = now.getTime();
+  const rs = await Promise.allSettled(
+    leagues.map((l) => getScoreboardRange(l, ymd(shiftDays(now, -1)), ymd(shiftDays(now, 1)), 30).then((ms) => ms.map((m) => ({ ...m, league: l })))),
+  );
   const seen = new Set<string>();
   const matches = rs
     .flatMap((r) => (r.status === "fulfilled" ? r.value : []))
     .filter((m) => !seen.has(m.id) && !!seen.add(m.id))
-    .filter((m) => fans.has(`${m.league}/${m.home.team.id}`) || fans.has(`${m.league}/${m.away.team.id}`))
     .filter((m) => {
-      const t = now.getTime() - new Date(m.date).getTime();
-      // başlamasına 1 saatten az kalan, oynanan ya da son 4 saatte biten maçlar
-      return m.state === "in" || (m.state === "pre" && t > -3600e3) || (m.state === "post" && t < 4 * 3600e3);
+      const dt = t - new Date(m.date).getTime();
+      return (m.state === "pre" && dt > -(REMIND_MIN + 2) * 60e3) || m.state === "in" || (m.state === "post" && dt < 5 * 3600e3);
     });
   if (!matches.length) return Response.json({ checked: 0 });
 
-  const { data: prevRows } = await sb.from("goal_state").select("match_id, home, away").in("match_id", matches.map((m) => m.id));
+  const fanOf = (m: Match) => new Set([...(fans.get(`${m.league}/${m.home.team.id}`) ?? []), ...(fans.get(`${m.league}/${m.away.team.id}`) ?? [])]);
+  const title = (m: Match) => `${m.home.team.short} - ${m.away.team.short}`;
+  const score = (m: Match) => `${m.home.team.short} ${m.home.score ?? 0}-${m.away.score ?? 0} ${m.away.team.short}`;
+  const url = (m: Match) => `/mac/${m.league}/${m.id}`;
+  const lgName = (m: Match) => leagueByCode(m.league)?.name ?? "";
+
+  // Gol takibi için son görülen skorlar
+  const tracked = matches.filter((m) => m.state !== "pre" && fanOf(m).size);
+  const { data: prevRows } = tracked.length
+    ? await sb.from("goal_state").select("match_id, home, away").in("match_id", tracked.map((m) => m.id))
+    : { data: [] };
   const prev = new Map((prevRows ?? []).map((r) => [r.match_id as string, r as { home: number; away: number }]));
-
-  webpush.setVapidDetails(process.env.VAPID_SUBJECT || "mailto:kekoscore@example.com", PUB, PRIV);
-  const sends: Promise<unknown>[] = [];
-  const dead: string[] = [];
   const updates: { match_id: string; home: number; away: number; updated_at: string }[] = [];
-  let goals = 0;
 
+  const jobs: Job[] = [];
   for (const m of matches) {
-    const h = m.home.score ?? 0, a = m.away.score ?? 0;
-    const p = prev.get(m.id);
-    if (!p || p.home !== h || p.away !== a) updates.push({ match_id: m.id, home: h, away: a, updated_at: now.toISOString() });
-    // İlk kez görülen maçta bildirim yok (kurulumda eski goller için bildirim yağmasın)
-    if (!p || m.state === "pre") continue;
-    const scorers: Match["home"][] = [];
-    if (h > p.home) scorers.push(m.home);
-    if (a > p.away) scorers.push(m.away);
-    for (const side of scorers) {
-      const users = fans.get(`${m.league}/${side.team.id}`);
-      if (!users?.size) continue;
-      goals++;
-      const payload = JSON.stringify({
-        title: `⚽ GOL! ${side.team.short}`,
-        body: `${m.home.team.short} ${h}-${a} ${m.away.team.short}${m.clock ? ` · ${m.clock}` : ""}`,
-        url: `/mac/${m.league}/${m.id}`,
-        tag: `gol-${m.id}-${h}-${a}`,
-      });
-      for (const s of subs.filter((x) => users.has(x.user_id))) {
-        sends.push(
-          webpush
-            .sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload, { TTL: 600, urgency: "high" })
-            .catch((e: { statusCode?: number }) => {
-              if (e?.statusCode === 404 || e?.statusCode === 410) dead.push(s.endpoint);
-            }),
-        );
+    const fansHere = fanOf(m);
+    const women = leagueByCode(m.league)?.group === "Kadınlar";
+    const big = women ? undefined : matchBigKind(m);
+    const mins = (new Date(m.date).getTime() - t) / 60e3;
+
+    // 1) 30 dk kala hatırlatma: büyük kulüpler + favori takımlar
+    if (m.state === "pre" && mins > 0 && mins <= REMIND_MIN + 1 && !/postp|ertel|cancel|iptal/i.test(m.detail)) {
+      const users = new Set(fansHere);
+      if (big === "tr") bigTr.forEach((u) => users.add(u));
+      if (big === "eu") bigEu.forEach((u) => users.add(u));
+      if (users.size) {
+        const left = Math.max(1, Math.round(mins));
+        jobs.push({
+          key: `hat-${m.id}`,
+          users,
+          payload: { title: `⏰ ${title(m)}`, body: `${lgName(m)} · ${left} dk sonra başlıyor`, url: url(m), tag: `hat-${m.id}` },
+        });
+      }
+    }
+    if (!fansHere.size) continue;
+
+    // 2) Favori takımın maçı başladı (yalnızca ilk 25 dakikada; sonradan kurulumda eski maçlar için gitmesin)
+    if (m.state === "in" && t - new Date(m.date).getTime() < 25 * 60e3) {
+      jobs.push({ key: `bas-${m.id}`, users: fansHere, payload: { title: `🟢 Başladı: ${title(m)}`, body: lgName(m), url: url(m), tag: `bas-${m.id}` } });
+    }
+
+    // 3) Gol: skor bir önceki kontrolden farklıysa golü atan takımın taraftarlarına
+    if (m.state !== "pre") {
+      const h = m.home.score ?? 0, a = m.away.score ?? 0;
+      const p = prev.get(m.id);
+      if (!p || p.home !== h || p.away !== a) updates.push({ match_id: m.id, home: h, away: a, updated_at: now.toISOString() });
+      if (p) {
+        for (const [side, up] of [[m.home, h > p.home], [m.away, a > p.away]] as const) {
+          if (!up) continue;
+          const users = fans.get(`${m.league}/${side.team.id}`);
+          if (!users?.size) continue;
+          jobs.push({
+            key: `gol-${m.id}-${h}-${a}`,
+            users,
+            payload: { title: `⚽ GOL! ${side.team.short}`, body: `${score(m)}${m.clock ? ` · ${m.clock}` : ""}`, url: url(m), tag: `gol-${m.id}-${h}-${a}` },
+          });
+        }
+      }
+      // 4) Maç sonu (yalnızca canlıyken takip ettiğimiz maçlar için)
+      if (m.state === "post" && p && t - new Date(m.date).getTime() < 3 * 3600e3) {
+        jobs.push({ key: `ms-${m.id}`, users: fansHere, payload: { title: `🏁 Maç sonu: ${score(m)}`, body: lgName(m), url: url(m), tag: `ms-${m.id}` } });
       }
     }
   }
 
-  await Promise.all(sends);
   if (updates.length) await sb.from("goal_state").upsert(updates, { onConflict: "match_id" });
-  if (dead.length) await sb.from("push_subscriptions").delete().in("endpoint", dead);
-  return Response.json({ checked: matches.length, goals, sent: sends.length - dead.length });
+  const claimed = await claim(sb, jobs.map((j) => j.key));
+  // notice_log tablosu yoksa yalnızca goller gider (goal_state zaten tekrarı önlüyor)
+  const won = claimed ?? new Set(jobs.filter((j) => j.key.startsWith("gol-")).map((j) => j.key));
+  let sent = 0;
+  await Promise.all(
+    jobs
+      .filter((j) => won.has(j.key))
+      .map(async (j) => {
+        sent += await sendAll(sb, subs.filter((s) => j.users.has(s.user_id)), j.payload);
+      }),
+  );
+  return Response.json({ checked: matches.length, jobs: jobs.length, claimed: won.size, sent });
 }
 
 export const GET = run;

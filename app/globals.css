@@ -453,3 +453,17 @@ a.player:hover, a.lp:hover { background: var(--surface-2); }
 .card-head .count.live { display: inline-grid; place-items: center; height: 20px; padding: 0 7px; border-radius: 999px; background: var(--live); color: #fff; font-size: 11px; font-weight: 700; }
 .league-sec.closed .card-head .count.live { background: var(--live); color: #fff; }
 .group-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 18px 4px 8px; }
+
+/* Bildirim ayarları */
+.notif .push-row, .notif .push-hint { border: 0; background: none; margin: 0; border-radius: 0; }
+.notif .push-hint a { color: var(--accent); font-weight: 700; }
+.notif-rows { display: grid; }
+.notif-rows.off { opacity: .55; }
+.notif-row { display: flex; align-items: center; gap: 12px; padding: 11px 14px; border-top: 1px solid var(--line); cursor: pointer; }
+.notif-row span { flex: 1; display: grid; gap: 2px; }
+.notif-row b { font-size: 14px; }
+.notif-row small { color: var(--muted); font-size: 12px; line-height: 1.35; }
+.switch { appearance: none; -webkit-appearance: none; width: 44px; height: 26px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); position: relative; flex: none; cursor: pointer; transition: background .2s; margin: 0; }
+.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .2s; }
+.switch:checked { background: var(--accent-bg); border-color: transparent; }
+.switch:checked::after { transform: translateX(18px); }
