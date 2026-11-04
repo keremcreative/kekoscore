@@ -31,7 +31,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body>
         <header className="topbar">
           <Link href="/" className="brand">
-            <span className="brand-mark" aria-hidden>◐</span> kekoscore
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img className="brand-mark" src="/icon.svg" alt="" width={28} height={28} /> kekoscore
           </Link>
           <TzSwitch value={tz} />
         </header>
