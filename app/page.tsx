@@ -8,7 +8,7 @@ import { LiveHero, type Featured } from "@/components/LiveHero";
 import { MatchRow } from "@/components/MatchRow";
 import { MUST, getAllLeagueDays, getLeagueLogosCached, getMatch, getTrDays } from "@/lib/data";
 import { parseYmd, shiftDays, ymd } from "@/lib/format";
-import { LEAGUES } from "@/lib/leagues";
+import { LEAGUES, compareLeagues } from "@/lib/leagues";
 import { serverFavs } from "@/lib/favsServer";
 import { LeagueSection } from "@/components/LeagueSection";
 import { COLLAPSE_COOKIE, OPEN_COOKIE } from "@/lib/collapse";
@@ -28,8 +28,6 @@ const KEEP_YESTERDAY_UNTIL = 12;
 /** Biten maç üstteki kartta bu kadar süre görünür (başlama saatinden itibaren) */
 const HERO_DONE_MS = 5 * 3600e3;
 
-/** Ana sayfada her zaman en üstte duran ligler */
-const CORE = ["tur.1", "eng.1", "esp.1", "ita.1", "ger.1", "fra.1"];
 
 const trHour = (d: Date) => Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Istanbul", hour: "2-digit", hourCycle: "h23" }).format(d));
 
@@ -79,19 +77,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const favTeams = new Set(favs.filter((f) => f.kind === "team").map((f) => f.ref));
   const favLeagues = new Set(favs.filter((f) => f.kind === "league").map((f) => f.ref));
   const isFav = (code: string, m: Match) => favTeams.has(`${code}/${m.home.team.id}`) || favTeams.has(`${code}/${m.away.team.id}`);
-  // Sıralama: Süper Lig ve 5 büyük lig her zaman en üstte (bu sırayla). Sonra takip edilenler
-  // (favori ligler, Avrupa kupaları, büyük kulüplerin / favori takımların oynadığı kupalar) A-Z.
-  // Geri kalan ligler en altta, A-Z ve kapalı gelir.
-  const core = (code: string) => CORE.indexOf(code);
-  const az = (a: (typeof sections)[number], b: (typeof sections)[number]) =>
-    a.league.country.localeCompare(b.league.country, "tr") || a.league.name.localeCompare(b.league.name, "tr");
+  // Sıralama popülerliğe göre (lib/leagues.ts'deki sıra): Süper Lig, 5 büyük lig, Avrupa kupaları,
+  // milli turnuvalar, sonra diğer ligler. Alfabetik DEĞİL: Kerem en çok takip edilenleri üstte istiyor.
+  const byRank = (a: (typeof sections)[number], b: (typeof sections)[number]) => compareLeagues(a.league.code, b.league.code);
   const followed = (s: (typeof sections)[number]) =>
     favLeagues.has(s.league.code) || s.league.tier === 1 || s.matches.some((m) => isFav(s.league.code, m) || !!matchBigKind(m));
-  const top = [
-    ...sections.filter((s) => core(s.league.code) >= 0).sort((a, b) => core(a.league.code) - core(b.league.code)),
-    ...sections.filter((s) => core(s.league.code) < 0 && followed(s)).sort(az),
-  ];
-  const rest = sections.filter((s) => core(s.league.code) < 0 && !followed(s)).sort(az);
+  const top = sections.filter(followed).sort(byRank);
+  const rest = sections.filter((s) => !followed(s)).sort(byRank);
   const favMatches = sections.flatMap((s) => s.matches.filter((m) => isFav(s.league.code, m))).sort((a, b) => a.date.localeCompare(b.date));
 
   const failed = results.filter((r) => r === null).length;
