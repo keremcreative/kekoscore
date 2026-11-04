@@ -16,8 +16,8 @@ const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
 const isStandalone = () =>
   window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
-/** Sohbet bildirimlerini bu cihazda açar/kapatır */
-export function PushToggle() {
+/** Bu cihazda bildirimleri açar/kapatır (sohbet ve maç bildirimleri aynı abonelikle gelir) */
+export function PushToggle({ offLabel = "🔕 Yeni mesajlarda bildirim al", onChange }: { offLabel?: string; onChange?: (on: boolean) => void }) {
   const [state, setState] = useState<State>("loading");
   const [error, setError] = useState("");
 
@@ -32,6 +32,7 @@ export function PushToggle() {
       const reg = await navigator.serviceWorker.ready;
       const sub = await reg.pushManager.getSubscription();
       setState(sub ? "on" : "off");
+      onChange?.(!!sub);
     })().catch(() => setState("unsupported"));
   }, []);
 
@@ -51,6 +52,7 @@ export function PushToggle() {
         .upsert({ endpoint: sub.endpoint, p256dh: j.keys?.p256dh, auth: j.keys?.auth }, { onConflict: "endpoint" });
       if (error) throw error;
       setState("on");
+      onChange?.(true);
     } catch (e) {
       setError("Bildirim açılamadı: " + (e as Error).message);
       setState("off");
@@ -68,6 +70,7 @@ export function PushToggle() {
       }
     } finally {
       setState("off");
+      onChange?.(false);
     }
   }
 
@@ -78,7 +81,7 @@ export function PushToggle() {
     return <p className="push-hint">🔕 Bildirim izni kapalı. iPhone Ayarlar → Bildirimler → kekoscore'dan açabilirsin.</p>;
   return (
     <div className="push-row">
-      <span>{state === "on" ? "🔔 Bildirimler açık" : "🔕 Yeni mesajlarda bildirim al"}</span>
+      <span>{state === "on" ? "🔔 Bu cihazda bildirimler açık" : offLabel}</span>
       <button className="link-btn strong" onClick={state === "on" ? disable : enable} disabled={state === "busy"}>
         {state === "busy" ? "…" : state === "on" ? "Kapat" : "Aç"}
       </button>

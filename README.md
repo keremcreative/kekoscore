@@ -63,3 +63,9 @@ kullanıcı adı + şifre her yerde çalışır.
    - `VAPID_PRIVATE_KEY` = private key (**Secret**)
    - `SUPABASE_SECRET_KEY` = Supabase → API Keys → secret key (**Secret**)
 4. Yeniden yayınla. Sohbet ekranında "Aç" ile her cihaz bir kez izin verir.
+
+### Maç bildirimleri (hatırlatma, başladı, gol, maç sonu)
+1. `supabase/goller.sql` (dakikada bir zamanlayıcı) daha önce çalıştırıldıysa yalnızca `supabase/hatirlatma.sql`'i bir kez çalıştır.
+2. Herkes **Favoriler → Bildirimler** kartından hangi bildirimleri istediğini seçer:
+   Türk büyükleri + Milli Takım, Avrupa devleri (maçtan 30 dk önce), favori takımlar (30 dk kala, başladı, gol, maç sonu), sohbet.
+3. Büyük kulüp listesi `lib/bigClubs.ts` içinde; ad eklemek yeterli.

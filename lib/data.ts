@@ -1,5 +1,7 @@
-import { LEAGUES } from "./leagues";
-import type { LeagueLogo } from "./types";
+import { LEAGUES, leagueByCode } from "./leagues";
+import { teamCoach } from "./wiki";
+import type { Coach, LeagueLogo, Match, Team } from "./types";
+import { parseYmd, shiftDays, ymd } from "./format";
 import * as espn from "./espn";
 import * as mock from "./mock";
 
@@ -16,6 +18,25 @@ export const getRoster = source.roster;
 export const getLeagueLogo = source.leagueLogo;
 export const getPlayer = source.playerProfile;
 
+/**
+ * Türkiye takvimine göre [from, to] günlerinin maçları. ESPN günleri ABD saatine göre
+ * böldüğü için (TR'de gece 02:00'deki MLS maçı ESPN'de bir önceki gündedir) bir gün
+ * öncesinden başlayarak tek istekte çekip Türkiye gününe göre süzüyoruz.
+ */
+export async function getTrDays(code: string, from: string, to: string = from): Promise<Match[]> {
+  const today = ymd(new Date());
+  const espnFrom = ymd(shiftDays(parseYmd(from), -1));
+  const fresh = to >= ymd(shiftDays(new Date(), -1)) && from <= today;
+  const list = await source.scoreboardRange(code, espnFrom, to, fresh ? 20 : 600);
+  const seen = new Set<string>();
+  return list.filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    const d = ymd(new Date(m.date));
+    return d >= from && d <= to;
+  });
+}
+
 /** Tüm liglerin logoları; biri alınamazsa o lig bayrakla gösterilir */
 export async function getLeagueLogos(): Promise<Record<string, LeagueLogo>> {
   const rs = await Promise.allSettled(LEAGUES.map((l) => source.leagueLogo(l.code)));
@@ -23,3 +44,12 @@ export async function getLeagueLogos(): Promise<Record<string, LeagueLogo>> {
 }
 
 export const dataSourceName = process.env.DATA_SOURCE === "mock" ? "Örnek veri" : "ESPN";
+
+/** Takımın teknik direktörü. ESPN vermediği için Wikidata'dan; bulunamazsa undefined. */
+export async function getCoach(league: string, team: Team): Promise<Coach | undefined> {
+  if (process.env.DATA_SOURCE === "mock") return { name: "Okan Örnek", age: 52, nationality: "Türkiye" };
+  const lg = leagueByCode(league);
+  if (lg?.group === "Kadınlar") return undefined; // aynı adlı erkek takımın hocası çıkmasın
+  const national = lg?.group === "Milli takımlar" && league !== "club.friendly";
+  return teamCoach(team.name, national);
+}
