@@ -7,10 +7,11 @@ import { PredictionCard } from "@/components/social/Predict";
 import { Tabs } from "@/components/Tabs";
 import { TeamLink } from "@/components/TeamLink";
 import { TeamLogo } from "@/components/TeamLogo";
-import { getMatch } from "@/lib/data";
+import { getCoach, getMatch } from "@/lib/data";
+import { PlayerPhoto } from "@/components/PlayerPhoto";
 import { kickoff, longDate } from "@/lib/format";
 import { leagueByCode } from "@/lib/leagues";
-import type { EventKind, Lineup, LineupPlayer, MatchDetail } from "@/lib/types";
+import type { Coach, EventKind, Lineup, LineupPlayer, MatchDetail } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
@@ -64,6 +65,11 @@ export default async function MatchPage({
     ...(m.h2h.length ? [{ key: "h2h", label: "Aralarında" }] : []),
   ];
   const teamLeague = known ? code : "";
+  // Teknik direktörler: kadro sekmesinde ve maç öncesi özette
+  const coaches: (Coach | undefined)[] =
+    tab === "kadro" || m.state === "pre"
+      ? await Promise.all([getCoach(code, m.home.team).catch(() => undefined), getCoach(code, m.away.team).catch(() => undefined)])
+      : [];
 
   return (
     <>
@@ -129,11 +135,17 @@ export default async function MatchPage({
             </section>
           )}
 
+          {m.state === "pre" && (coaches[0] || coaches[1]) && (
+            <section className="card">
+              <div className="section-title">Teknik direktörler</div>
+              <Coaches coaches={coaches} />
+            </section>
+          )}
           {m.state === "pre" && <p className="empty">Maç başladığında olaylar ve istatistikler burada görünecek.</p>}
         </>
       )}
 
-      {tab === "kadro" && <Lineups m={m} />}
+      {tab === "kadro" && <Lineups m={m} coaches={coaches} />}
 
       {tab === "h2h" && (
         <section className="card">
@@ -183,7 +195,29 @@ function PlayerLine({ p, league }: { p: LineupPlayer; league: string }) {
 
 const ORDER = { G: 0, D: 1, M: 2, F: 3, "?": 4 } as const;
 
-function Lineups({ m }: { m: MatchDetail }) {
+function Coaches({ coaches }: { coaches: (Coach | undefined)[] }) {
+  return (
+    <div className="lineup-coach">
+      {coaches.slice(0, 2).map((c, i) => (
+        <div key={i}>
+          {c ? (
+            <>
+              <PlayerPhoto src={c.photo} name={c.name} size={32} />
+              <span>
+                <small>TD</small>
+                {c.name}
+              </span>
+            </>
+          ) : (
+            <span />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Lineups({ m, coaches }: { m: MatchDetail; coaches: (Coach | undefined)[] }) {
   const get = (side: "home" | "away"): Lineup | undefined => m.lineups.find((l) => l.side === side);
   const sides = [get("home"), get("away")];
   const starters = (l?: Lineup) => (l?.players ?? []).filter((p) => p.starter).sort((a, b) => ORDER[a.pos] - ORDER[b.pos]);
@@ -209,6 +243,12 @@ function Lineups({ m }: { m: MatchDetail }) {
                 <div key={i}>{bench(l).map((p) => <PlayerLine key={p.id + p.name} p={p} league={m.league} />)}</div>
               ))}
             </div>
+          </>
+        )}
+        {(coaches[0] || coaches[1]) && (
+          <>
+            <div className="section-title">Teknik direktörler</div>
+            <Coaches coaches={coaches} />
           </>
         )}
       </section>

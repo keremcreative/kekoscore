@@ -7,7 +7,8 @@ import { MatchRow } from "@/components/MatchRow";
 import { StandingsTable } from "@/components/StandingsTable";
 import { Tabs } from "@/components/Tabs";
 import { TeamLogo } from "@/components/TeamLogo";
-import { getRoster, getStandings, getTeamInfo, getTeamSchedule } from "@/lib/data";
+import { getCoach, getRoster, getStandings, getTeamInfo, getTeamSchedule } from "@/lib/data";
+import { PlayerPhoto } from "@/components/PlayerPhoto";
 import { kickoff, longDate } from "@/lib/format";
 import { leagueByCode } from "@/lib/leagues";
 import { seasonStats } from "@/lib/teamStats";
@@ -59,6 +60,7 @@ export default async function TeamPage({
     .find((t) => t.id === id);
   const team: Team | undefined = info?.team ?? row?.team ?? fromMatches;
   if (!team) return <p className="notice error">Takım bilgisi yüklenemedi.</p>;
+  const coach = await getCoach(code, team).catch(() => undefined);
 
   // İstatistikler yalnızca bu ligin maçlarından
   const leaguePast = sched.past.filter((m) => m.league === code);
@@ -81,6 +83,17 @@ export default async function TeamPage({
         </div>
         <FavButton kind="team" refId={`${code}/${team.id}`} />
       </section>
+
+      {coach && (
+        <section className="card coach">
+          <PlayerPhoto src={coach.photo} name={coach.name} size={44} />
+          <span>
+            <small>Teknik direktör</small>
+            <b>{coach.name}</b>
+          </span>
+          <span className="coach-meta">{[coach.nationality, coach.age && `${coach.age} yaş`].filter(Boolean).join(" · ")}</span>
+        </section>
+      )}
 
       <Tabs items={TABS} current={tab} base={base} />
 
@@ -174,6 +187,7 @@ export default async function TeamPage({
                 <div className="section-title">{label}</div>
                 {ps.map((p) => (
                   <Link className="player" key={p.id || p.name} href={`/oyuncu/${code}/${p.id}`}>
+                    <PlayerPhoto src={p.photo} name={p.name} size={38} />
                     <span className="num">{p.number ?? ""}</span>
                     <span className="pname">
                       {p.name}

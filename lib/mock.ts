@@ -183,8 +183,8 @@ export async function playerProfile(league: string, id: string): Promise<import(
   const g = p.pos === "F" ? n(12) : p.pos === "M" ? n(5) : "0";
   return {
     id, league, name: p.name, number: p.number, position: { G: "Kaleci", D: "Defans", M: "Orta saha", F: "Forvet", "?": "" }[p.pos],
-    pos: p.pos, age: p.age, birth: `12/3/${2026 - (p.age ?? 25)}`, height: `${170 + Math.floor(r() * 25)} cm`, weight: `${65 + Math.floor(r() * 20)} kg`,
-    nationality: p.nationality, team: t,
+    pos: p.pos, age: p.age, birth: `${2026 - (p.age ?? 25)}-03-12`, height: `${170 + Math.floor(r() * 25)} cm`, weight: `${65 + Math.floor(r() * 20)} kg`,
+    nationality: p.nationality, team: t, teamColor: t.id === "1" ? "a90432" : "14213d",
     summary: [["Maç", "10"], ["Gol", g], ["Asist", n(5)], ["Şut", n(30)]],
     stats: {
       labels: ["STRT", "FC", "FA", "YC", "RC", "G", "A", "SHOT", "SOG", "OFF"],

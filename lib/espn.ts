@@ -4,6 +4,7 @@
  * yalnızca bu dosyayı düzeltmek yeterli. Her alan isteğe bağlı okunur ki
  * eksik veri sayfayı çökertmesin.
  */
+import { playerPhotos } from "./wiki";
 import type {
   EventKind,
   LineupPlayer,
@@ -135,7 +136,20 @@ function player(a: J, pos: J): Player {
     posLabel: (pos ?? ath?.position)?.abbreviation,
     age: num(ath?.age),
     nationality: ath?.citizenship ?? ath?.birthPlace?.country,
+    photo: ath?.headshot?.href,
+    dob: typeof ath?.dateOfBirth === "string" ? ath.dateOfBirth.slice(0, 10) : undefined,
   };
+}
+
+/** ESPN'de fotoğrafı olmayan oyuncular için Wikidata'dan fotoğraf */
+async function fillPhotos<T extends { name: string; photo?: string; dob?: string }>(list: T[]): Promise<T[]> {
+  const missing = list.filter((p) => !p.photo && p.name !== "?");
+  if (!missing.length) return list;
+  const found = await playerPhotos(missing.map((p) => ({ name: p.name, dob: p.dob })));
+  missing.forEach((p, i) => {
+    if (found[i]) p.photo = found[i];
+  });
+  return list;
 }
 
 function lineups(data: J, homeId: string): Lineup[] {
@@ -275,7 +289,7 @@ export async function roster(league: string, id: string): Promise<Player[]> {
   const raw: J[] = data?.athletes ?? [];
   // Bazen pozisyona göre gruplu ({ position, items }) geliyor
   const flat = raw.flatMap((x) => (Array.isArray(x?.items) ? x.items : [x]));
-  return flat.map((a) => player(a, a?.position));
+  return fillPhotos(flat.map((a) => player(a, a?.position)));
 }
 
 /** Lig logoları (açık ve koyu tema), scoreboard yanıtının "leagues" alanından */
@@ -311,20 +325,26 @@ export async function playerProfile(league: string, id: string): Promise<import(
   const ov: J = ovR.status === "fulfilled" ? ovR.value : {};
   const st: J = ov?.statistics ?? {};
   const { height, weight } = metric(a?.displayHeight, a?.displayWeight);
+  // "17/6/2001" -> "2001-06-17"
+  const d = String(a?.displayDOB ?? "").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const dob = d ? `${d[3]}-${d[2].padStart(2, "0")}-${d[1].padStart(2, "0")}` : undefined;
+  const name = a?.displayName ?? a?.fullName ?? "?";
+  const photo = a?.headshot?.href ?? (await playerPhotos([{ name, dob }]))[0] ?? `https://a.espncdn.com/i/headshots/soccer/players/full/${id}.png`;
   return {
     id: String(a?.id ?? id),
     league,
-    name: a?.displayName ?? a?.fullName ?? "?",
+    name,
     number: a?.jersey,
     position: a?.position?.displayName,
     pos: posGroup(a?.position),
     age: num(a?.age),
-    birth: a?.displayDOB,
+    birth: dob ?? a?.displayDOB,
     height,
     weight,
     nationality: a?.citizenship,
     flag: a?.flag?.href,
-    photo: a?.headshot?.href ?? `https://a.espncdn.com/i/headshots/soccer/players/full/${id}.png`,
+    photo,
+    teamColor: typeof a?.team?.color === "string" && /^[0-9a-f]{6}$/i.test(a.team.color) ? a.team.color : undefined,
     team: a?.team ? team(a.team) : undefined,
     summary: (a?.statsSummary?.statistics ?? []).map((s: J) => [s?.shortDisplayName ?? s?.displayName ?? s?.name, s?.displayValue ?? "-"]),
     stats: {

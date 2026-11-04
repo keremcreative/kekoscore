@@ -77,6 +77,9 @@ export interface Player {
   posLabel?: string;
   age?: number;
   nationality?: string;
+  photo?: string;
+  /** YYYY-MM-DD */
+  dob?: string;
 }
 
 export interface LineupPlayer extends Player {
@@ -122,8 +125,18 @@ export interface PlayerProfile {
   nationality?: string;
   flag?: string;
   photo?: string;
+  /** Takım rengi (#'siz hex), profil başlığının zemini için */
+  teamColor?: string;
   team?: Team;
   /** Sezon özeti: ör. [["Maç", "9"], ["Gol", "9"]] */
   summary: [string, string][];
   stats: { labels: string[]; names: string[]; splits: PlayerStatSplit[] };
+}
+
+/** Teknik direktör (Wikidata'dan) */
+export interface Coach {
+  name: string;
+  photo?: string;
+  age?: number;
+  nationality?: string;
 }

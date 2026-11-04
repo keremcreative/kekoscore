@@ -1,5 +1,6 @@
-import { LEAGUES } from "./leagues";
-import type { LeagueLogo, Match } from "./types";
+import { LEAGUES, leagueByCode } from "./leagues";
+import { teamCoach } from "./wiki";
+import type { Coach, LeagueLogo, Match, Team } from "./types";
 import { parseYmd, shiftDays, ymd } from "./format";
 import * as espn from "./espn";
 import * as mock from "./mock";
@@ -43,3 +44,12 @@ export async function getLeagueLogos(): Promise<Record<string, LeagueLogo>> {
 }
 
 export const dataSourceName = process.env.DATA_SOURCE === "mock" ? "Örnek veri" : "ESPN";
+
+/** Takımın teknik direktörü. ESPN vermediği için Wikidata'dan; bulunamazsa undefined. */
+export async function getCoach(league: string, team: Team): Promise<Coach | undefined> {
+  if (process.env.DATA_SOURCE === "mock") return { name: "Okan Örnek", age: 52, nationality: "Türkiye" };
+  const lg = leagueByCode(league);
+  if (lg?.group === "Kadınlar") return undefined; // aynı adlı erkek takımın hocası çıkmasın
+  const national = lg?.group === "Milli takımlar" && league !== "club.friendly";
+  return teamCoach(team.name, national);
+}
