@@ -711,3 +711,8 @@ a.search-row:hover { background: var(--surface-2); }
 .msg-actions button { border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 999px; cursor: pointer; }
 .msg-actions .danger { color: var(--live); }
 .msgs { padding-bottom: 96px; }
+
+/* Yönetici duyurusu */
+.announce form { display: grid; gap: 8px; padding: 0 12px 12px; }
+.announce input, .announce textarea { width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); font: inherit; font-size: 16px; outline: none; resize: vertical; }
+.announce input:focus, .announce textarea:focus { border-color: var(--accent); }

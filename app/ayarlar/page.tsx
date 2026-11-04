@@ -1,3 +1,4 @@
+import { Announce } from "@/components/social/Announce";
 import { NotifSettings } from "@/components/social/NotifSettings";
 import { TzSwitch } from "@/components/TzSwitch";
 import { initTz } from "@/lib/tz";
@@ -17,6 +18,7 @@ export default async function Settings() {
         </span>
         <TzSwitch value={tz} />
       </section>
+      <Announce />
     </>
   );
 }
