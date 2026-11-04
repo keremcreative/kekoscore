@@ -58,15 +58,37 @@ export async function getCoach(league: string, team: Team): Promise<Coach | unde
 }
 
 /**
- * Ana sayfa için tüm liglerin maçları tek önbellek kaydında (20 sn). Her açılışta ~95 ayrı
- * önbellek okuması yerine tek okuma yapılır; sekmeler arası geçiş hızlanır. Alınamayan lig null.
+ * Ana sayfa ligleri iki gruba ayrılır: "ana" (Süper Lig, büyük ligler, Avrupa kupaları,
+ * önemli kupalar; ~50 lig) ve "diğer" (kalan ~120 lig). Ana sayfa önce ana grubu bekleyip
+ * hemen gösterir, diğer grup arkadan akar; 172 ligin hepsini beklemek gerekmez.
  */
-export const getAllLeagueDays = unstable_cache(
-  async (from: string, to: string): Promise<(Match[] | null)[]> =>
-    Promise.all(LEAGUES.map((l) => getTrDays(l.code, from, to).catch(() => null))),
-  ["tum-ligler-v1", process.env.DATA_SOURCE ?? "espn"],
+export type LeagueGroup = "ana" | "diger";
+export const groupOf = (code: string): LeagueGroup => ((leagueByCode(code)?.tier ?? 3) <= 2 ? "ana" : "diger");
+const GROUPS: Record<LeagueGroup, typeof LEAGUES> = {
+  ana: LEAGUES.filter((l) => groupOf(l.code) === "ana"),
+  diger: LEAGUES.filter((l) => groupOf(l.code) === "diger"),
+};
+export const groupLeagues = (g: LeagueGroup) => GROUPS[g];
+
+/**
+ * Bir grubun tüm liglerinin maçları tek önbellek kaydında (20 sn). Kayıt bayatladığında
+ * eski veri hemen verilir, yenisi arka planda hazırlanır. Alınamayan lig null.
+ */
+export const getGroupDays = unstable_cache(
+  async (group: LeagueGroup, from: string, to: string): Promise<(Match[] | null)[]> =>
+    Promise.all(GROUPS[group].map((l) => getTrDays(l.code, from, to).catch(() => null))),
+  ["lig-grubu-v2", process.env.DATA_SOURCE ?? "espn"],
   { revalidate: 20 },
 );
+
+/** Tüm liglerin maçları, LEAGUES sırasıyla (arama sayfası için) */
+export async function getAllLeagueDays(from: string, to: string): Promise<(Match[] | null)[]> {
+  const [ana, diger] = await Promise.all([getGroupDays("ana", from, to), getGroupDays("diger", from, to)]);
+  const by = new Map<string, Match[] | null>();
+  GROUPS.ana.forEach((l, i) => by.set(l.code, ana[i]));
+  GROUPS.diger.forEach((l, i) => by.set(l.code, diger[i]));
+  return LEAGUES.map((l) => by.get(l.code) ?? null);
+}
 
 /** Lig logoları tek kayıtta, günde bir yenilenir */
 export const getLeagueLogosCached = unstable_cache(getLeagueLogos, ["lig-logolari-v1", process.env.DATA_SOURCE ?? "espn"], { revalidate: 86400 });
