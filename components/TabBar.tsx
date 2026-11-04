@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 const BallIcon = () => (
   <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -43,7 +44,11 @@ const StarIcon = () => (
 );
 
 export function TabBar() {
-  const path = usePathname();
+  const actual = usePathname();
+  // Dokunulan sekme, sayfa gelmeden hemen seçili görünsün
+  const [pending, setPending] = useState<string | null>(null);
+  useEffect(() => setPending(null), [actual]);
+  const path = pending ?? actual;
   const tabs = [
     { href: "/", label: "Maçlar", icon: <BallIcon />, on: path === "/" || path.startsWith("/mac") },
     { href: "/lig", label: "Ligler", icon: <TableIcon />, on: path.startsWith("/lig") || path.startsWith("/takim") || path.startsWith("/oyuncu") },
@@ -56,8 +61,14 @@ export function TabBar() {
   return (
     <nav className="tabbar" aria-label="Ana menü">
       {tabs.map((t) => (
-        <Link key={t.label} href={t.href} className={t.on ? "on" : ""}>
-          {t.icon}
+        <Link
+          key={t.label}
+          href={t.href}
+          className={t.on ? "on" : ""}
+          aria-current={t.on ? "page" : undefined}
+          onClick={() => t.href !== actual && setPending(t.href)}
+        >
+          <span className="tab-ico">{t.icon}</span>
           <span>{t.label}</span>
         </Link>
       ))}

@@ -6,7 +6,7 @@ import { StandingsTable } from "@/components/StandingsTable";
 import { TeamLogo } from "@/components/TeamLogo";
 import { FavSync } from "@/components/social/FavSync";
 import { NotifSettings } from "@/components/social/NotifSettings";
-import { getLeagueLogos, getPlayer, getStandings, getTeamInfo, getTeamSchedule } from "@/lib/data";
+import { getLeagueLogosCached, getPlayer, getStandings, getTeamInfo, getTeamSchedule } from "@/lib/data";
 import { serverFavs } from "@/lib/favsServer";
 import { favKey } from "@/lib/favs";
 import { leagueByCode } from "@/lib/leagues";
@@ -34,7 +34,7 @@ export default async function FavoritesPage() {
     })),
     Promise.all(players.map(([lg, id]) => getPlayer(lg, id).catch(() => null))),
     Promise.all(leagues.map((code) => getStandings(code).catch(() => []))),
-    leagues.length ? getLeagueLogos() : Promise.resolve({} as Awaited<ReturnType<typeof getLeagueLogos>>),
+    leagues.length ? getLeagueLogosCached() : Promise.resolve({} as Awaited<ReturnType<typeof getLeagueLogosCached>>),
   ]);
 
   return (

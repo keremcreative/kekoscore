@@ -159,8 +159,12 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13px; font-vari
   flex: 1; max-width: 120px; display: grid; justify-items: center; gap: 2px;
   padding: 4px 0; font-size: 10px; letter-spacing: -0.01em; min-width: 0; font-weight: 600; color: var(--muted);
 }
-.tabbar a.on { color: var(--text); }
-.tabbar a.on svg { color: var(--accent); }
+.tabbar a { -webkit-tap-highlight-color: transparent; }
+.tab-ico { display: grid; place-items: center; width: 52px; height: 30px; border-radius: 999px; transition: background .15s, color .15s, transform .15s; }
+.tabbar a:active .tab-ico { transform: scale(.92); }
+.tabbar a.on { color: var(--text); font-weight: 800; }
+.tabbar a.on .tab-ico { background: var(--accent-bg); color: #16181c; }
+.tabbar a.on svg { color: #16181c; stroke-width: 2.2; }
 .topbar, .tabbar, .datenav, .match, .back { -webkit-user-select: none; user-select: none; }
 
 /* Sekmeler */
@@ -539,3 +543,15 @@ a.player:hover, a.lp:hover { background: var(--surface-2); }
 .comm-item.k-foul, .comm-item.k-offside, .comm-item.k-other { color: var(--muted); }
 .comm-item.big { background: color-mix(in srgb, var(--accent-bg) 14%, transparent); font-weight: 700; }
 .comm-item.k-period { background: var(--surface-2); font-weight: 600; }
+
+/* Yükleniyor iskeleti */
+.skel { background: var(--surface-2); border-radius: 8px; animation: pulse 1.2s ease-in-out infinite; }
+.skel-title { height: 26px; width: 40%; margin: 6px 0 14px; }
+.skel-row-chips { display: flex; gap: 6px; margin-bottom: 12px; background: none; animation: none; }
+.skel-row-chips span { height: 32px; width: 70px; border-radius: 999px; }
+.skel-card { padding: 12px 14px; }
+.skel-head { height: 16px; width: 55%; margin-bottom: 12px; }
+.skel-line { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.skel-dot { width: 28px; height: 28px; border-radius: 50%; flex: none; }
+.skel-bar { height: 14px; flex: 1; }
+.skel-line:nth-child(odd) .skel-bar { max-width: 70%; }

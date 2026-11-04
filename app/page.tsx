@@ -5,7 +5,7 @@ import { DateNav, type Filter } from "@/components/DateNav";
 import { LeagueIcon } from "@/components/LeagueIcon";
 import { LiveHero, type Featured } from "@/components/LiveHero";
 import { MatchRow } from "@/components/MatchRow";
-import { getLeagueLogos, getMatch, getTrDays } from "@/lib/data";
+import { getAllLeagueDays, getLeagueLogosCached, getMatch } from "@/lib/data";
 import { parseYmd, shiftDays, ymd } from "@/lib/format";
 import { LEAGUES } from "@/lib/leagues";
 import { serverFavs } from "@/lib/favsServer";
@@ -37,10 +37,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   // Bugün açıkken dünün maçlarını da çek: gece biten ya da hâlâ süren maçlar kaybolmasın
   const from = isToday ? yesterday : key;
 
-  const [results, logos] = await Promise.all([
-    Promise.allSettled(LEAGUES.map((l) => getTrDays(l.code, from, key))),
-    getLeagueLogos(),
-  ]);
+  const [results, logos] = await Promise.all([getAllLeagueDays(from, key), getLeagueLogosCached()]);
   const keepYesterday = trHour(now) < KEEP_YESTERDAY_UNTIL;
   const visible = (m: Match) => {
     if (ymd(new Date(m.date)) === key) return true;
@@ -51,7 +48,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
 
   const dayMatches = LEAGUES.map((league, i) => {
     const r = results[i];
-    return { league, all: r.status === "fulfilled" ? r.value.filter(visible).sort((a, b) => a.date.localeCompare(b.date)) : [] };
+    return { league, all: r ? r.filter(visible).sort((a, b) => a.date.localeCompare(b.date)) : [] };
   });
   const sections = dayMatches.map(({ league, all }) => ({ league, matches: all.filter(pass) })).filter((s) => s.matches.length);
 
@@ -67,7 +64,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const isFav = (code: string, m: Match) => favTeams.has(`${code}/${m.home.team.id}`) || favTeams.has(`${code}/${m.away.team.id}`);
   const favMatches = sections.flatMap((s) => s.matches.filter((m) => isFav(s.league.code, m))).sort((a, b) => a.date.localeCompare(b.date));
 
-  const failed = results.filter((r) => r.status === "rejected").length;
+  const failed = results.filter((r) => r === null).length;
   const anyLive = dayMatches.some((s) => s.all.some((m) => m.state === "in"));
 
   // En üstteki kart: ana liglerin, büyük kulüplerin ve favorilerin canlı maçları;
