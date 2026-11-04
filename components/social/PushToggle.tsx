@@ -20,6 +20,7 @@ const isStandalone = () =>
 export function PushToggle({ offLabel = "🔕 Yeni mesajlarda bildirim al", onChange }: { offLabel?: string; onChange?: (on: boolean) => void }) {
   const [state, setState] = useState<State>("loading");
   const [error, setError] = useState("");
+  const [test, setTest] = useState("");
 
   useEffect(() => {
     (async () => {
@@ -33,7 +34,15 @@ export function PushToggle({ offLabel = "🔕 Yeni mesajlarda bildirim al", onCh
       const sub = await reg.pushManager.getSubscription();
       setState(sub ? "on" : "off");
       onChange?.(!!sub);
-    })().catch(() => setState("unsupported"));
+      // Telefonda abonelik var ama sunucudaki kayıt silinmiş olabilir (süresi dolan abonelikler
+      // gönderimde silinir). Her açılışta yeniden kaydet ki bildirimler sessizce kesilmesin.
+      if (sub) {
+        const j = sub.toJSON();
+        await supabase()
+          .from("push_subscriptions")
+          .upsert({ endpoint: sub.endpoint, p256dh: j.keys?.p256dh, auth: j.keys?.auth }, { onConflict: "endpoint" });
+      }
+    })().catch(() => setState((s) => (s === "loading" ? "unsupported" : s)));
   }, []);
 
   async function enable() {
@@ -56,6 +65,21 @@ export function PushToggle({ offLabel = "🔕 Yeni mesajlarda bildirim al", onCh
     } catch (e) {
       setError("Bildirim açılamadı: " + (e as Error).message);
       setState("off");
+    }
+  }
+
+  async function sendTest() {
+    setTest("Gönderiliyor…");
+    try {
+      const { data } = await supabase().auth.getSession();
+      const token = data.session?.access_token;
+      if (!token) return setTest("Önce giriş yap.");
+      const r = await fetch("/api/test-push", { method: "POST", headers: { authorization: `Bearer ${token}` } });
+      const j = (await r.json().catch(() => ({}))) as { sent?: number; devices?: number; error?: string };
+      if (!r.ok || j.error) return setTest(`Gönderilemedi: ${j.error ?? r.status}`);
+      setTest(j.sent ? `Gönderildi (${j.sent}/${j.devices} cihaz). Birkaç saniye içinde gelmeli.` : `Kayıtlı cihaz bulunamadı (${j.devices ?? 0}). Kapatıp yeniden aç.`);
+    } catch (e) {
+      setTest("Gönderilemedi: " + (e as Error).message);
     }
   }
 
@@ -85,6 +109,12 @@ export function PushToggle({ offLabel = "🔕 Yeni mesajlarda bildirim al", onCh
       <button className="link-btn strong" onClick={state === "on" ? disable : enable} disabled={state === "busy"}>
         {state === "busy" ? "…" : state === "on" ? "Kapat" : "Aç"}
       </button>
+      {state === "on" && (
+        <button className="link-btn" onClick={sendTest}>
+          Test bildirimi gönder
+        </button>
+      )}
+      {test && <p className="push-hint">{test}</p>}
       {error && <p className="form-error">{error}</p>}
     </div>
   );
