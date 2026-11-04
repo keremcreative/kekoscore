@@ -89,6 +89,10 @@ export interface LineupPlayer extends Player {
   starter: boolean;
   subbedIn?: boolean;
   subbedOut?: boolean;
+  /** ESPN maç istatistikleri (totalGoals, saves…) */
+  stats?: Record<string, number>;
+  /** Bizim hesapladığımız reyting (lib/rating.ts) */
+  rating?: number;
 }
 
 export interface Lineup {

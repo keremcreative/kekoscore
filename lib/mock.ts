@@ -5,6 +5,7 @@
 import type { LeagueLogo, Lineup, Match, MatchDetail, Player, PositionGroup, StandingRow, Team, TeamInfo, TeamSchedule } from "./types";
 import { shiftDays, ymd } from "./format";
 import { momentum, type Play } from "./momentum";
+import { rateLineups } from "./rating";
 
 const T = (id: string, name: string, abbr: string): Team => ({ id, name, short: name, abbr });
 
@@ -91,7 +92,16 @@ function lineup(t: Team, side: "home" | "away"): Lineup {
   return {
     side,
     formation: "4-3-3",
-    players: p.map((x, i) => ({ ...x, starter: i < 11, subbedOut: i === 9, subbedIn: i === 14 })),
+    players: p.map((x, i) => ({
+      ...x,
+      starter: i < 11,
+      subbedOut: i === 9,
+      subbedIn: i === 14,
+      stats: {
+        totalGoals: i === 10 ? 1 : 0, goalAssists: i === 8 ? 1 : 0, totalShots: (i * 7) % 4, shotsOnTarget: (i * 3) % 2,
+        saves: i === 0 ? 4 : 0, goalsConceded: 1, yellowCards: i === 5 ? 1 : 0, foulsCommitted: i % 3, foulsSuffered: (i * 5) % 3,
+      },
+    })),
   };
 }
 
@@ -150,7 +160,7 @@ export async function matchDetail(league: string, id: string): Promise<MatchDeta
           { label: "Faul", home: "9", away: "13" },
         ]
       : [],
-    lineups: [lineup(m.home.team, "home"), lineup(m.away.team, "away")],
+    lineups: started ? rateLineups([lineup(m.home.team, "home"), lineup(m.away.team, "away")], m.home.score, m.away.score) : [lineup(m.home.team, "home"), lineup(m.away.team, "away")],
     h2h,
   };
 }
