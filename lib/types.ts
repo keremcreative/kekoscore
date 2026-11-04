@@ -143,3 +143,25 @@ export interface Coach {
   age?: number;
   nationality?: string;
 }
+
+export interface Transfer {
+  date: string;
+  player: string;
+  playerId?: string;
+  from?: Team;
+  to?: Team;
+  /** "Kiralık", "Bonservissiz", "Bedeli açıklanmadı" ya da ücret */
+  fee: string;
+}
+
+export interface Leader {
+  player: string;
+  playerId?: string;
+  team?: Team;
+  value: number;
+}
+
+export interface LeagueLeaders {
+  goals: Leader[];
+  assists: Leader[];
+}

@@ -388,3 +388,51 @@ export async function playerProfile(league: string, id: string): Promise<import(
     },
   };
 }
+
+const FEE_TR: Record<string, string> = { Loan: "Kiralık", "Free Transfer": "Bonservissiz", Free: "Bonservissiz", Undisclosed: "Bedeli açıklanmadı", "End of loan": "Kiralık dönüşü", "Loan Return": "Kiralık dönüşü" };
+
+/** Ligdeki transferler (bu ve geçen sezon), yeniden eskiye */
+export async function transfers(league: string): Promise<import("./types").Transfer[]> {
+  const y = new Date().getUTCFullYear();
+  const rs = await Promise.allSettled([y, y - 1].map((season) => get(`${SITE}/${league}/transactions?season=${season}&limit=300`, 3600)));
+  if (rs.every((r) => r.status === "rejected")) throw (rs[0] as PromiseRejectedResult).reason;
+  const seen = new Set<string>();
+  return rs
+    .flatMap((r) => (r.status === "fulfilled" ? r.value?.transactions ?? [] : []))
+    .map((t: J) => {
+      const raw = String(t?.displayAmount ?? t?.type ?? "");
+      return {
+        date: t?.date ?? "",
+        player: t?.athlete?.displayName ?? "?",
+        playerId: t?.athlete?.id ? String(t.athlete.id) : undefined,
+        from: t?.from ? team(t.from) : undefined,
+        to: t?.to ? team(t.to) : undefined,
+        fee: FEE_TR[raw] ?? (raw || "—"),
+      };
+    })
+    .filter((t: import("./types").Transfer) => {
+      const k = `${t.player}|${t.date}`;
+      return !seen.has(k) && !!seen.add(k);
+    })
+    .sort((a: import("./types").Transfer, b: import("./types").Transfer) => b.date.localeCompare(a.date));
+}
+
+/** Gol ve asist krallığı */
+export async function leaders(league: string): Promise<import("./types").LeagueLeaders> {
+  const data = await get(`${SITE}/${league}/statistics`, 1800);
+  const cats: J[] = data?.stats ?? data?.statistics ?? [];
+  const pick = (re: RegExp) => {
+    const c = cats.find((x) => re.test(`${x?.name ?? ""} ${x?.displayName ?? ""}`));
+    return (c?.leaders ?? []).slice(0, 20).map((l: J) => {
+      const a = l?.athlete ?? {};
+      const t = l?.team ?? a?.team;
+      return {
+        player: a?.displayName ?? a?.fullName ?? "?",
+        playerId: a?.id ? String(a.id) : undefined,
+        team: t ? team(t) : undefined,
+        value: Number(l?.value ?? l?.displayValue) || 0,
+      };
+    });
+  };
+  return { goals: pick(/goal/i), assists: pick(/assist/i) };
+}

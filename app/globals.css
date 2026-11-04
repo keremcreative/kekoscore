@@ -504,7 +504,7 @@ a.player:hover, a.lp:hover { background: var(--surface-2); }
 
 /* Teknik direktör */
 .coach { display: flex; align-items: center; gap: 12px; padding: 10px 14px; }
-.coach > span:first-of-type { display: grid; flex: 1; min-width: 0; }
+.coach-txt { display: grid; flex: 1; min-width: 0; }
 .coach small { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; font-weight: 700; }
 .coach b { font-size: 15px; }
 .coach-meta { font-size: 12px; color: var(--muted); text-align: right; }
@@ -555,3 +555,102 @@ a.player:hover, a.lp:hover { background: var(--surface-2); }
 .skel-dot { width: 28px; height: 28px; border-radius: 50%; flex: none; }
 .skel-bar { height: 14px; flex: 1; }
 .skel-line:nth-child(odd) .skel-bar { max-width: 70%; }
+
+/* ===== Yoğun düzen (Ofsayt/Maçkolik tarzı): daha küçük yazı, tek satırlık maçlar ===== */
+:root { --radius: 10px; }
+body { font-size: 14px; }
+.topbar { padding: calc(6px + env(safe-area-inset-top)) 12px 6px; }
+.brand { font-size: 17px; }
+.brand-mark { width: 24px; height: 24px; border-radius: 6px; }
+.wrap { padding: 8px 10px calc(84px + env(safe-area-inset-bottom)); }
+.ticker { padding: 5px 0; }
+.chip { padding: 3px 8px 3px 4px; gap: 4px; }
+.chip-sc { font-size: 13px; }
+.chip .logo, .chip .logo-fallback { width: 16px !important; height: 16px !important; }
+.datenav { gap: 4px; padding: 2px 0 8px; }
+.datenav a { padding: 5px 10px; font-size: 12px; }
+.card { margin-bottom: 8px; }
+.card-head { padding: 7px 10px; font-size: 12px; gap: 6px; }
+.card-head .league-logo, .card-head picture { width: 16px !important; height: 16px !important; }
+.section-title { font-size: 11px; padding: 9px 10px 4px; }
+.page-title { font-size: 19px; margin: 2px 0 8px; }
+
+/* Tek satır maç: saat | ev sahibi | skor | deplasman */
+.match { display: grid; grid-template-columns: 38px 1fr 54px 1fr auto; align-items: center; gap: 6px; padding: 7px 10px; font-size: 13px; min-height: 38px; }
+.match .status { width: auto; font-size: 11px; }
+.status.live::before { width: 5px; height: 5px; margin-bottom: 2px; }
+.status-date { font-size: 10px; }
+.match .side { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.match .side.home { justify-content: flex-end; text-align: right; }
+.match .side .team-name { flex: 0 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.match .side.win .team-name { font-weight: 700; }
+.match .side.dim { color: var(--muted); }
+.match .side.me .team-name { text-decoration: underline; text-underline-offset: 3px; text-decoration-thickness: 2px; text-decoration-color: var(--accent-bg); }
+.match .sc { justify-self: center; min-width: 50px; text-align: center; padding: 3px 6px; border-radius: 6px; background: var(--surface-2); font-weight: 800; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.match .sc.pre { background: none; color: var(--muted); font-weight: 600; }
+.match.is-live .sc { background: var(--live); color: #fff; }
+.match .result-badge, .match > :last-child:not(.side) { justify-self: end; }
+
+/* Sekmeler: kaydırılabilir alt çizgili şerit */
+.tabs { gap: 0; padding: 0; margin: 0 -10px 8px; background: var(--surface); border-radius: 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); overflow-x: auto; scrollbar-width: none; }
+.tabs::-webkit-scrollbar { display: none; }
+.tabs a, .tabs button { flex: 1 0 auto; padding: 10px 12px; border-radius: 0; font-size: 13px; white-space: nowrap; border-bottom: 2px solid transparent; box-shadow: none !important; background: none !important; }
+.tabs a.on, .tabs button.on { color: var(--text); font-weight: 800; border-bottom-color: var(--accent-bg); }
+
+/* Üst kart (canlı/sıradaki) daha küçük */
+.hero-rail { margin: 0 -10px 8px; padding: 0 10px; gap: 8px; }
+.hero-rail.multi { grid-auto-columns: 78%; }
+.hero-card { padding: 10px 12px !important; }
+.hc-top { font-size: 12px; }
+.hc-grid { margin-top: 6px; }
+.hc-team .logo, .hc-team .logo-fallback { width: 38px !important; height: 38px !important; }
+.hc-team { font-size: 12px; gap: 4px; }
+.hc-score, .hc-time { font-size: 24px !important; }
+.hc-clock { font-size: 11px; }
+
+/* Maç detayı ve takım başlıkları */
+.hero { padding: 12px 10px; }
+.hero-score { font-size: 30px; }
+.hero-team { font-size: 13px; gap: 6px; }
+.hero-team .logo, .hero-team .logo-fallback { width: 40px !important; height: 40px !important; }
+.team-hero { padding: 12px; gap: 12px; }
+.team-hero h1 { font-size: 18px; }
+.player, .lp { padding: 6px 10px; font-size: 13px; }
+.table th, .table td { padding: 6px 3px; }
+.table th:first-child, .table td:first-child { padding-left: 10px; }
+.table th:last-child, .table td:last-child { padding-right: 10px; }
+.table .logo, .table .logo-fallback { width: 18px !important; height: 18px !important; }
+.league-list a { padding: 8px 10px; gap: 10px; }
+.event { padding: 5px 10px; font-size: 13px; }
+.stat { padding: 6px 10px; }
+.tabbar { padding: 4px 6px calc(4px + env(safe-area-inset-bottom)); }
+.tab-ico { width: 46px; height: 26px; }
+.tab-ico svg { width: 21px; height: 21px; }
+.hero-card { border-radius: 14px; }
+.mini-tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--line); border-top: 1px solid var(--line); }
+.mini-tiles .tile { padding: 8px 2px; }
+.mini-tiles .tile b { font-size: 16px; }
+.next-match { padding: 4px 10px 10px; font-size: 13px; }
+.next-match b { font-size: 18px; }
+.transfers { list-style: none; margin: 0; padding: 0; }
+.transfers li { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-top: 1px solid var(--line); font-size: 13px; }
+.transfers li:first-child { border-top: 0; }
+.tr-dir { width: 20px; height: 20px; flex: none; display: grid; place-items: center; border-radius: 6px; font-weight: 800; font-size: 12px; }
+.tr-in .tr-dir { background: color-mix(in srgb, #2fbf71 22%, transparent); color: #2fbf71; }
+.tr-out .tr-dir { background: color-mix(in srgb, var(--live) 18%, transparent); color: var(--live); }
+.tr-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.tr-main b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tr-route { display: flex; align-items: center; gap: 4px; color: var(--muted); font-size: 12px; overflow: hidden; white-space: nowrap; }
+.tr-arrow { margin: 0 2px; }
+.tr-side { text-align: right; display: grid; gap: 1px; flex: none; }
+.tr-fee { font-weight: 700; font-size: 12px; }
+.tr-side small { color: var(--muted); font-size: 11px; }
+.leaders { list-style: none; margin: 0; padding: 0; counter-reset: l; }
+.leaders li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-top: 1px solid var(--line); font-size: 13px; }
+.leaders li:first-child { border-top: 0; }
+.leaders .rk { width: 20px; text-align: center; color: var(--muted); font-weight: 700; font-size: 12px; }
+.leaders .nm { flex: 1; min-width: 0; display: grid; }
+.leaders .nm a, .leaders .nm span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaders .nm small { color: var(--muted); font-size: 11px; display: flex; align-items: center; gap: 4px; }
+.leaders .val { font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; min-width: 26px; text-align: right; }
+.leaders li:nth-child(-n+3) .rk { color: #16181c; background: var(--accent-bg); border-radius: 6px; }

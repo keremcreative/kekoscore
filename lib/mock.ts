@@ -223,3 +223,19 @@ export async function playerProfile(league: string, id: string): Promise<import(
     },
   };
 }
+
+export async function transfers(league: string): Promise<import("./types").Transfer[]> {
+  const ts = TEAMS[league] ?? [];
+  if (ts.length < 3) return [];
+  return [
+    { date: "2026-08-30T10:00Z", player: "Emre Yılmaz", playerId: `${ts[0].id}-9`, from: ts[2], to: ts[0], fee: "€12 mn" },
+    { date: "2026-08-12T10:00Z", player: "Can Demir", from: ts[0], to: ts[1], fee: "Kiralık" },
+    { date: "2026-07-05T10:00Z", player: "Mert Kaya", from: undefined, to: ts[0], fee: "Bonservissiz" },
+  ];
+}
+
+export async function leaders(league: string): Promise<import("./types").LeagueLeaders> {
+  const ts = TEAMS[league] ?? [];
+  const mk = (n: number) => ts.flatMap((t, i) => squad(t).slice(8, 10).map((p, j) => ({ player: p.name, playerId: p.id, team: t, value: Math.max(1, n - i - j * 2) }))).sort((a, b) => b.value - a.value).slice(0, 10);
+  return { goals: mk(11), assists: mk(6) };
+}
