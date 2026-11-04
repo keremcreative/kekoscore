@@ -59,3 +59,13 @@ export const PREDICT_LEAGUES = LEAGUES.filter((l) => (l.tier ?? 3) <= 2);
 
 /** Ligler sayfasındaki grup sırası */
 export const LEAGUE_GROUPS = ["Öne çıkanlar", "Kupalar", "Avrupa", "Dünya", "Milli takımlar", "Kadınlar"];
+
+/** Her zaman en üstte duran ligler (bu sırayla): Süper Lig, sonra 5 büyük lig */
+export const CORE_LEAGUES = ["tur.1", "eng.1", "esp.1", "ita.1", "ger.1", "fra.1"];
+/** Lig sıralaması: önce CORE_LEAGUES, sonra diğerleri ülkeye ve ada göre A-Z (ana sayfayla aynı) */
+export function compareLeagues(a: string, b: string): number {
+  const ia = CORE_LEAGUES.indexOf(a), ib = CORE_LEAGUES.indexOf(b);
+  if (ia >= 0 || ib >= 0) return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  const la = BY_CODE.get(a), lb = BY_CODE.get(b);
+  return (la?.country ?? "").localeCompare(lb?.country ?? "", "tr") || (la?.name ?? a).localeCompare(lb?.name ?? b, "tr");
+}
