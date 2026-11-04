@@ -47,8 +47,10 @@ export default async function TeamPage({
   await initTz();
   const { league: code, id } = await params;
   const tab = (await searchParams).sekme ?? "genel";
-  const league = leagueByCode(code);
-  if (!league) notFound();
+  // Listeden çıkarılan liglerdeki favori takımlar da açılabilsin
+  if (!/^[a-z0-9._]{2,40}$/.test(code)) notFound();
+  const known = !!leagueByCode(code);
+  const league = leagueByCode(code) ?? { code, name: "Takım", flag: "⚽", country: "" };
 
   const [infoR, schedR, tableR, rosterR, trR] = await Promise.allSettled([
     getTeamInfo(code, id),
@@ -76,7 +78,7 @@ export default async function TeamPage({
 
   return (
     <>
-      <Link href={`/lig/${code}`} className="back">‹ {league.name}</Link>
+      <Link href={known ? `/lig/${code}` : "/"} className="back">‹ {league.name}</Link>
       <section className="card team-hero">
         <TeamLogo team={team} size={64} />
         <div>
