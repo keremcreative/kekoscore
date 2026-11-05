@@ -21,16 +21,17 @@ export const getPlayer = source.playerProfile;
 export const getTransfers = source.transfers;
 export const getLeaders = source.leaders;
 
+/** Aralık dün ya da bugünü kapsıyor mu (skorlar hâlâ değişebilir mi). Geçmiş ve ileri günler 10 dk önbellekte kalır. */
+const isFresh = (from: string, to: string) => to >= ymd(shiftDays(new Date(), -1)) && from <= ymd(new Date());
+
 /**
  * Türkiye takvimine göre [from, to] günlerinin maçları. ESPN günleri ABD saatine göre
  * böldüğü için (TR'de gece 02:00'deki MLS maçı ESPN'de bir önceki gündedir) bir gün
  * öncesinden başlayarak tek istekte çekip Türkiye gününe göre süzüyoruz.
  */
-export async function getTrDays(code: string, from: string, to: string = from): Promise<Match[]> {
-  const today = ymd(new Date());
+export async function getTrDays(code: string, from: string, to: string = from, store = true): Promise<Match[]> {
   const espnFrom = ymd(shiftDays(parseYmd(from), -1));
-  const fresh = to >= ymd(shiftDays(new Date(), -1)) && from <= today;
-  const list = await source.scoreboardRange(code, espnFrom, to, fresh ? 20 : 600);
+  const list = await source.scoreboardRange(code, espnFrom, to, store ? (isFresh(from, to) ? 20 : 600) : 0);
   const seen = new Set<string>();
   return list.filter((m) => {
     if (seen.has(m.id)) return false;
@@ -66,27 +67,48 @@ export const MUST = new Set(["tur.1", "eng.1", "esp.1", "ita.1", "ger.1", "fra.1
 /** Bu sunucu örneğinde ana ligler en son ne zaman eksiksiz alındı */
 let lastComplete = 0;
 
-export const getAllLeagueDays = unstable_cache(
-  async (from: string, to: string): Promise<(Match[] | null)[]> => {
-    // Önemli ligler sıranın başına: ESPN yavaşken ilk onlar istenir
-    const order = LEAGUES.map((_, i) => i).sort((a, b) => Number(MUST.has(LEAGUES[b].code)) - Number(MUST.has(LEAGUES[a].code)));
-    const rs: (Match[] | null)[] = LEAGUES.map(() => null);
-    await Promise.all(order.map(async (i) => (rs[i] = await getTrDays(LEAGUES[i].code, from, to).catch(() => null))));
-    // Hiçbir lig alınamadıysa bunu önbelleğe yazma; yoksa sayfa 20 sn boyunca boş kalır
+async function loadAllLeagueDays(from: string, to: string): Promise<(Match[] | null)[]> {
+  // Lig başına istekler önbelleğe yazılmaz (store=false): sonucun tamamı aşağıdaki tek
+  // unstable_cache kaydında tutuluyor. Eskiden her 20 sn'de 21 lig ayrı ayrı + 1 toplu kayıt yazılıyordu.
+  const load = (i: number) => getTrDays(LEAGUES[i].code, from, to, false).catch(() => null);
+  // Önemli ligler sıranın başına: ESPN yavaşken ilk onlar istenir
+  const order = LEAGUES.map((_, i) => i).sort((a, b) => Number(MUST.has(LEAGUES[b].code)) - Number(MUST.has(LEAGUES[a].code)));
+  const rs: (Match[] | null)[] = LEAGUES.map(() => null);
+  await Promise.all(order.map(async (i) => (rs[i] = await load(i))));
+  // Hiçbir lig alınamadıysa bunu önbelleğe yazma; yoksa sayfa 20 sn boyunca boş kalır
+  if (rs.every((r) => r === null)) throw new Error("ESPN'den hiçbir lig alınamadı");
+  // Ana liglerden biri düştüyse bir kez daha dene (kuyruk artık boş)
+  const missing = LEAGUES.map((l, i) => i).filter((i) => rs[i] === null && MUST.has(LEAGUES[i].code));
+  await Promise.all(missing.map(async (i) => (rs[i] = await load(i))));
+  if (missing.some((i) => rs[i] === null)) {
+    // Hâlâ eksikse kaydetme: önbellekteki son eksiksiz liste gösterilmeye devam eder
+    // (Şampiyonlar Ligi'nin ana sayfadan kaybolması yerine birkaç saniyelik eski skor).
+    // Ama ESPN uzun süre sorun çıkarırsa skorlar donmasın diye 3 dakikadan sonra eksik haliyle yaz.
+    if (Date.now() - lastComplete < 180e3) throw new Error("Ana ligler alınamadı");
+  } else lastComplete = Date.now();
+  return rs;
+}
+
+const KEY = ["tum-ligler-v2", process.env.DATA_SOURCE ?? "espn"];
+/** Bugün/dün/ileri günler: skorlar değişiyor, 20 sn */
+const allLeagueDaysFresh = unstable_cache(loadAllLeagueDays, KEY, { revalidate: 20 });
+/** Geçmiş ya da ileri bir gün seçilince: skor değişmiyor, 10 dk */
+const allLeagueDaysPast = unstable_cache(loadAllLeagueDays, [...KEY, "gecmis"], { revalidate: 600 });
+
+export const getAllLeagueDays = (from: string, to: string) => (isFresh(from, to) ? allLeagueDaysFresh : allLeagueDaysPast)(from, to);
+
+/**
+ * Tahmin ekranı: önümüzdeki 7 günün maçları tek kayıtta (2 dk). Lig başına istekler önbelleğe yazılmaz.
+ * Başlamış maçlar sayfada o anki saate göre ayrıca süzülüyor.
+ */
+export const getPredictRanges = unstable_cache(
+  async (codes: string[], from: string, to: string): Promise<(Match[] | null)[]> => {
+    const rs = await Promise.all(codes.map((c) => source.scoreboardRange(c, from, to, 0).catch(() => null)));
     if (rs.every((r) => r === null)) throw new Error("ESPN'den hiçbir lig alınamadı");
-    // Ana liglerden biri düştüyse bir kez daha dene (kuyruk artık boş)
-    const missing = LEAGUES.map((l, i) => i).filter((i) => rs[i] === null && MUST.has(LEAGUES[i].code));
-    await Promise.all(missing.map(async (i) => (rs[i] = await getTrDays(LEAGUES[i].code, from, to).catch(() => null))));
-    if (missing.some((i) => rs[i] === null)) {
-      // Hâlâ eksikse kaydetme: önbellekteki son eksiksiz liste gösterilmeye devam eder
-      // (Şampiyonlar Ligi'nin ana sayfadan kaybolması yerine birkaç saniyelik eski skor).
-      // Ama ESPN uzun süre sorun çıkarırsa skorlar donmasın diye 3 dakikadan sonra eksik haliyle yaz.
-      if (Date.now() - lastComplete < 180e3) throw new Error("Ana ligler alınamadı");
-    } else lastComplete = Date.now();
     return rs;
   },
-  ["tum-ligler-v2", process.env.DATA_SOURCE ?? "espn"],
-  { revalidate: 20 },
+  ["tahmin-v1", process.env.DATA_SOURCE ?? "espn"],
+  { revalidate: 120 },
 );
 
 /** Lig logoları tek kayıtta, günde bir yenilenir */

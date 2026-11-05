@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
-import { getScoreboard } from "@/lib/data";
+import { getScoreboardRange } from "@/lib/data";
 import { kickoff, shiftDays, ymd } from "@/lib/format";
 import { MAIN_LEAGUES } from "@/lib/leagues";
 import type { Match } from "@/lib/types";
@@ -16,10 +16,13 @@ export function liveLabel(m: Match) {
  * En üstteki kaydırılabilir bant: önce canlılar, sonra son 24 saatte biten
  * maçların sonuçları (en yenisi önde), sonra bugünün sıradaki maçları.
  */
-/** Bandın maçları tek önbellek kaydında (20 sn): her sayfa açılışında 32 ayrı okuma yapılmasın */
+/**
+ * Bandın maçları tek önbellek kaydında (20 sn). Lig başına istekler önbelleğe yazılmaz (0):
+ * eskiden her 20 sn'de lig x gün kadar (42) ayrı yazma oluyordu. Dün+bugün tek istekte.
+ */
 const tickerMatches = unstable_cache(
   async (yesterday: string, today: string): Promise<Match[]> => {
-    const rs = await Promise.allSettled(MAIN_LEAGUES.flatMap((l) => [yesterday, today].map((d) => getScoreboard(l.code, d))));
+    const rs = await Promise.allSettled(MAIN_LEAGUES.map((l) => getScoreboardRange(l.code, yesterday, today, 0)));
     const seen = new Set<string>();
     return rs.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter((m) => !seen.has(m.id) && seen.add(m.id));
   },

@@ -61,11 +61,12 @@ async function run(req: Request) {
   const favLeagues = [...fans.keys()].map((r) => r.slice(0, r.lastIndexOf("/")));
   const leagues = [...new Set([...SCAN, ...favLeagues])];
 
-  // Dün, bugün, yarın (Türkiye ve ABD günlerinin hepsini kapsasın)
+  // Dün, bugün, yarın (Türkiye ve ABD günlerinin hepsini kapsasın). Önbelleğe yazılmaz (0): bu tarama
+  // dakikada bir, 7/24 çalışıyor; 30 sn'lik önbellek hiç işe yaramadan her dakika lig başına bir yazma yapıyordu.
   const now = new Date();
   const t = now.getTime();
   const rs = await Promise.allSettled(
-    leagues.map((l) => getScoreboardRange(l, ymd(shiftDays(now, -1)), ymd(shiftDays(now, 1)), 30).then((ms) => ms.map((m) => ({ ...m, league: l })))),
+    leagues.map((l) => getScoreboardRange(l, ymd(shiftDays(now, -1)), ymd(shiftDays(now, 1)), 0).then((ms) => ms.map((m) => ({ ...m, league: l })))),
   );
   const seen = new Set<string>();
   const matches = rs

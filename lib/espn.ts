@@ -48,12 +48,20 @@ async function slot<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * revalidate > 0: Vercel veri önbelleğine yazılır (her yenilemede bir "Runtime Cache Write").
+ * revalidate = 0: önbelleğe yazılmaz. Sonucu zaten tek bir unstable_cache kaydında tutulan
+ * toplu sorgular (ana sayfa, bant) ve dakikada bir çalışan bildirim taraması bunu kullanır;
+ * yoksa her 20 sn'de lig başına ayrı ayrı yazma yapılıyordu ve ücretsiz kota doluyordu.
+ */
+const cacheOpt = (revalidate: number): RequestInit => (revalidate > 0 ? { next: { revalidate } } : { cache: "no-store" });
+
 async function get(url: string, revalidate: number): Promise<J> {
   let last: unknown;
   // Zaman aşımı ya da 5xx'te bir kez daha dene
   for (let i = 0; i < 2; i++) {
     try {
-      const res = await slot(() => fetch(url, { next: { revalidate }, headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) }));
+      const res = await slot(() => fetch(url, { ...cacheOpt(revalidate), headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) }));
       if (res.ok) return await res.json();
       last = new Error(`ESPN ${res.status}: ${url}`);
       if (res.status < 500 && res.status !== 429) break;
@@ -122,8 +130,8 @@ function toMatch(ev: J, league: string): Match {
 
 const events = (data: J, league: string): Match[] => (data?.events ?? []).map((e: J) => toMatch(e, league));
 
-export async function scoreboard(league: string, yyyymmdd: string): Promise<Match[]> {
-  return events(await get(`${SITE}/${league}/scoreboard?dates=${yyyymmdd}`, 20), league);
+export async function scoreboard(league: string, yyyymmdd: string, revalidate = 20): Promise<Match[]> {
+  return events(await get(`${SITE}/${league}/scoreboard?dates=${yyyymmdd}`, revalidate), league);
 }
 
 /** Tarih aralığındaki maçlar (YYYYMMDD-YYYYMMDD) */
@@ -139,7 +147,7 @@ export async function scoreboardRange(league: string, from: string, to: string, 
       days.push(d.toISOString().slice(0, 10).replace(/-/g, ""));
       d.setUTCDate(d.getUTCDate() + 1);
     }
-    const rs = await Promise.allSettled(days.map((x) => scoreboard(league, x)));
+    const rs = await Promise.allSettled(days.map((x) => scoreboard(league, x, revalidate)));
     if (rs.every((r) => r.status === "rejected")) throw e;
     const seen = new Set<string>();
     return rs.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter((m) => !seen.has(m.id) && !!seen.add(m.id));
