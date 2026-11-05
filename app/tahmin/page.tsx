@@ -2,7 +2,7 @@ import { cookies } from "next/headers";
 import { Tabs } from "@/components/Tabs";
 import { Leaderboard } from "@/components/social/Leaderboard";
 import { PredictBoard, type BoardMatch } from "@/components/social/Predict";
-import { getLeagueLogosCached, getScoreboardRange } from "@/lib/data";
+import { getLeagueLogosCached, getPredictRanges } from "@/lib/data";
 import { kickoff, shiftDays, shortDate, ymd } from "@/lib/format";
 import { PREDICT_LEAGUES as LEAGUES } from "@/lib/leagues";
 import { initTz } from "@/lib/tz";
@@ -24,11 +24,11 @@ export default async function PredictPage({ searchParams }: { searchParams: Prom
   if (tab === "maclar") {
     const now = new Date();
     const from = ymd(now), to = ymd(shiftDays(now, 6));
-    const [rs, logos] = await Promise.all([Promise.allSettled(LEAGUES.map((l) => getScoreboardRange(l.code, from, to))), getLeagueLogosCached()]);
+    const [rs, logos] = await Promise.all([getPredictRanges(LEAGUES.map((l) => l.code), from, to).catch(() => LEAGUES.map(() => null)), getLeagueLogosCached()]);
     items = LEAGUES.flatMap((l, i) => {
       const r = rs[i];
-      return r.status === "fulfilled"
-        ? r.value.filter((m) => m.state === "pre" && new Date(m.date) > now && !/postp|ertel|cancel/i.test(m.detail)).map((match) => ({ league: l.code, leagueName: l.name, flag: l.flag, logo: logos[l.code], match }))
+      return r
+        ? r.filter((m) => m.state === "pre" && new Date(m.date) > now && !/postp|ertel|cancel/i.test(m.detail)).map((match) => ({ league: l.code, leagueName: l.name, flag: l.flag, logo: logos[l.code], match }))
         : [];
     })
       .sort((a, b) => a.match.date.localeCompare(b.match.date))

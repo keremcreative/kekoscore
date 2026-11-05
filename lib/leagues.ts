@@ -68,3 +68,18 @@ const RANK = new Map(LEAGUES.map((l, i) => [l.code, i]));
 export function compareLeagues(a: string, b: string): number {
   return (RANK.get(a) ?? 999) - (RANK.get(b) ?? 999);
 }
+
+/** Takım sayfasında maçın hangi turnuvadan olduğunu gösteren kısa ad */
+const COMP_SHORT: Record<string, string> = {
+  "uefa.champions": "ŞL",
+  "uefa.europa": "UEL",
+  "uefa.europa.conf": "UECL",
+  "eng.fa": "FA Cup",
+  "eng.league_cup": "Lig K.",
+  "esp.copa_del_rey": "Kral K.",
+  "ita.coppa_italia": "İt. K.",
+  "ger.dfb_pokal": "DFB K.",
+  "fra.coupe_de_france": "Fr. K.",
+  "conmebol.libertadores": "Lib.",
+};
+export const compShort = (code: string) => COMP_SHORT[code] ?? leagueByCode(code)?.name ?? "Kupa";

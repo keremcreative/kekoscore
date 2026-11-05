@@ -7,7 +7,7 @@ import { LeagueIcon } from "@/components/LeagueIcon";
 import { LiveHero, type Featured } from "@/components/LiveHero";
 import { MatchRow } from "@/components/MatchRow";
 import { MUST, getAllLeagueDays, getLeagueLogosCached, getMatch, getTrDays } from "@/lib/data";
-import { parseYmd, shiftDays, ymd } from "@/lib/format";
+import { hourNow, parseYmd, shiftDays, ymd } from "@/lib/format";
 import { LEAGUES, compareLeagues } from "@/lib/leagues";
 import { serverFavs } from "@/lib/favsServer";
 import { LeagueSection } from "@/components/LeagueSection";
@@ -23,13 +23,12 @@ export const dynamic = "force-dynamic";
 const within = <T,>(p: Promise<T>, ms: number): Promise<T | undefined> =>
   Promise.race([p.catch(() => undefined), new Promise<undefined>((r) => setTimeout(r, ms))]);
 
-/** Dünün maçları Türkiye saatiyle bu saate kadar "Bugün" listesinde kalır */
+/** Dünün maçları (seçili saat dilimiyle) bu saate kadar "Bugün" listesinde kalır */
 const KEEP_YESTERDAY_UNTIL = 12;
 /** Biten maç üstteki kartta bu kadar süre görünür (başlama saatinden itibaren) */
 const HERO_DONE_MS = 5 * 3600e3;
 
 
-const trHour = (d: Date) => Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Istanbul", hour: "2-digit", hourCycle: "h23" }).format(d));
 
 export default async function Home({ searchParams }: { searchParams: Promise<{ d?: string; canli?: string; durum?: string }> }) {
   await initTz();
@@ -54,7 +53,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const restIdx = cached.map((r, i) => i).filter((i) => !cached[i] && !MUST.has(LEAGUES[i].code));
   const mustP = Promise.all(mustIdx.map(async (i) => (results[i] = await retry(i))));
   await Promise.all([mustP, ...restIdx.map(async (i) => (results[i] = await retry(i)))]);
-  const keepYesterday = trHour(now) < KEEP_YESTERDAY_UNTIL;
+  const keepYesterday = hourNow(now) < KEEP_YESTERDAY_UNTIL;
   const visible = (m: Match) => {
     if (ymd(new Date(m.date)) === key) return true;
     // dünden kalanlar: süren maçlar her zaman, bitenler öğlene kadar

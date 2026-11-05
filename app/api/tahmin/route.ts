@@ -68,7 +68,9 @@ export async function GET() {
   const results = new Map<string, Match>();
   await Promise.all(
     [...groups.values()].map(async (g) => {
-      const ms = await getScoreboardRange(g.league, g.from, g.to).catch(() => [] as Match[]);
+      // Bitmiş günlerin sonuçları değişmez: 1 saat önbellekte kalsın (her puan tablosu açılışında yeniden yazılmasın)
+      const old = g.to < ymdUtc(new Date(Date.now() - 2 * 86400000));
+      const ms = await getScoreboardRange(g.league, g.from, g.to, old ? 3600 : 60).catch(() => [] as Match[]);
       for (const m of ms) results.set(`${g.league}|${m.id}`, m);
     }),
   );

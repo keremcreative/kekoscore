@@ -48,12 +48,20 @@ async function slot<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * revalidate > 0: Vercel veri önbelleğine yazılır (her yenilemede bir "Runtime Cache Write").
+ * revalidate = 0: önbelleğe yazılmaz. Sonucu zaten tek bir unstable_cache kaydında tutulan
+ * toplu sorgular (ana sayfa, bant) ve dakikada bir çalışan bildirim taraması bunu kullanır;
+ * yoksa her 20 sn'de lig başına ayrı ayrı yazma yapılıyordu ve ücretsiz kota doluyordu.
+ */
+const cacheOpt = (revalidate: number): RequestInit => (revalidate > 0 ? { next: { revalidate } } : { cache: "no-store" });
+
 async function get(url: string, revalidate: number): Promise<J> {
   let last: unknown;
   // Zaman aşımı ya da 5xx'te bir kez daha dene
   for (let i = 0; i < 2; i++) {
     try {
-      const res = await slot(() => fetch(url, { next: { revalidate }, headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) }));
+      const res = await slot(() => fetch(url, { ...cacheOpt(revalidate), headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) }));
       if (res.ok) return await res.json();
       last = new Error(`ESPN ${res.status}: ${url}`);
       if (res.status < 500 && res.status !== 429) break;
@@ -122,8 +130,8 @@ function toMatch(ev: J, league: string): Match {
 
 const events = (data: J, league: string): Match[] => (data?.events ?? []).map((e: J) => toMatch(e, league));
 
-export async function scoreboard(league: string, yyyymmdd: string): Promise<Match[]> {
-  return events(await get(`${SITE}/${league}/scoreboard?dates=${yyyymmdd}`, 20), league);
+export async function scoreboard(league: string, yyyymmdd: string, revalidate = 20): Promise<Match[]> {
+  return events(await get(`${SITE}/${league}/scoreboard?dates=${yyyymmdd}`, revalidate), league);
 }
 
 /** Tarih aralığındaki maçlar (YYYYMMDD-YYYYMMDD) */
@@ -139,7 +147,7 @@ export async function scoreboardRange(league: string, from: string, to: string, 
       days.push(d.toISOString().slice(0, 10).replace(/-/g, ""));
       d.setUTCDate(d.getUTCDate() + 1);
     }
-    const rs = await Promise.allSettled(days.map((x) => scoreboard(league, x)));
+    const rs = await Promise.allSettled(days.map((x) => scoreboard(league, x, revalidate)));
     if (rs.every((r) => r.status === "rejected")) throw e;
     const seen = new Set<string>();
     return rs.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter((m) => !seen.has(m.id) && !!seen.add(m.id));
@@ -341,16 +349,42 @@ export async function teamInfo(league: string, id: string): Promise<TeamInfo> {
   return { team: team(t), venue: t?.venue?.fullName, standingSummary: t?.standingSummary };
 }
 
+/** Kulüp liglerinin takımlarının ayrıca oynadığı kupalar (ESPN takım kimlikleri bütün turnuvalarda aynı) */
+const EURO_CUPS = ["uefa.champions", "uefa.europa", "uefa.europa.conf"];
+const TEAM_CUPS: Record<string, string[]> = {
+  "tur.1": EURO_CUPS,
+  "eng.1": [...EURO_CUPS, "eng.fa", "eng.league_cup"],
+  "esp.1": [...EURO_CUPS, "esp.copa_del_rey"],
+  "ita.1": [...EURO_CUPS, "ita.coppa_italia"],
+  "ger.1": [...EURO_CUPS, "ger.dfb_pokal"],
+  "fra.1": [...EURO_CUPS, "fra.coupe_de_france"],
+  "por.1": EURO_CUPS,
+  "ned.1": EURO_CUPS,
+  "bra.1": ["conmebol.libertadores"],
+  "arg.1": ["conmebol.libertadores"],
+};
+
 export async function teamSchedule(league: string, id: string): Promise<TeamSchedule> {
   const [past, next] = await Promise.allSettled([
     get(`${SITE}/${league}/teams/${id}/schedule`, 120),
     get(`${SITE}/${league}/teams/${id}/schedule?fixture=true`, 600),
   ]);
+  // Lig fikstürü ESPN'de yalnızca o ligin maçlarını veriyor: Avrupa kupası ve yerel kupa maçlarını ayrıca çek.
+  // Takım o kupada yoksa istek boş/hata döner, sessizce atlanır.
+  const cups = TEAM_CUPS[league] ?? [];
+  const cupRs = await Promise.allSettled(
+    cups.flatMap((c) => [
+      get(`${SITE}/${c}/teams/${id}/schedule`, 600).then((d) => events(d, c)),
+      get(`${SITE}/${c}/teams/${id}/schedule?fixture=true`, 1800).then((d) => events(d, c)),
+    ]),
+  );
   const all = new Map<string, Match>();
   for (const r of [past, next]) {
     if (r.status === "fulfilled") for (const m of events(r.value, league)) all.set(m.id, m);
   }
   if (past.status === "rejected" && next.status === "rejected") throw past.reason;
+  // Kupa maçının bağlantısı kendi turnuvasına gitsin (maç sayfası özetini o ligden ister)
+  for (const r of cupRs) if (r.status === "fulfilled") for (const m of r.value) if (!all.has(m.id)) all.set(m.id, m);
   const list = [...all.values()].filter((m) => m.date);
   return {
     past: list.filter((m) => m.state !== "pre").sort((a, b) => b.date.localeCompare(a.date)),

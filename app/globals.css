@@ -166,6 +166,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: 13px; font-vari
 .res-L { background: #d64532; }
 .form { display: inline-flex; gap: 4px; margin-top: 8px; }
 .status-date { display: block; font-size: 11px; color: var(--muted); font-weight: 500; }
+.comp-tag { display: block; font-size: 10px; font-weight: 700; color: var(--accent, #c6f432); white-space: nowrap; }
 .team-line.me .team-name { font-weight: 700; }
 .match .res { margin-left: 2px; }
 

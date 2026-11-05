@@ -61,7 +61,7 @@ function season(league: string): Match[] {
 
 const dayOf = (m: Match) => ymd(new Date(m.date));
 
-export async function scoreboard(league: string, yyyymmdd: string): Promise<Match[]> {
+export async function scoreboard(league: string, yyyymmdd: string, _revalidate?: number): Promise<Match[]> {
   return season(league).filter((m) => dayOf(m) === yyyymmdd);
 }
 
