@@ -3,6 +3,7 @@ import { LEAGUES, leagueByCode } from "./leagues";
 import { teamCoach } from "./wiki";
 import type { Coach, LeagueLogo, Match, Team } from "./types";
 import { parseYmd, shiftDays, ymd } from "./format";
+import { currentTz } from "./tz";
 import * as espn from "./espn";
 import * as mock from "./mock";
 
@@ -22,21 +23,21 @@ export const getTransfers = source.transfers;
 export const getLeaders = source.leaders;
 
 /** Aralık dün ya da bugünü kapsıyor mu (skorlar hâlâ değişebilir mi). Geçmiş ve ileri günler 10 dk önbellekte kalır. */
-const isFresh = (from: string, to: string) => to >= ymd(shiftDays(new Date(), -1)) && from <= ymd(new Date());
+const isFresh = (from: string, to: string, tz: string) => to >= ymd(shiftDays(new Date(), -1), tz) && from <= ymd(new Date(), tz);
 
 /**
  * Türkiye takvimine göre [from, to] günlerinin maçları. ESPN günleri ABD saatine göre
  * böldüğü için (TR'de gece 02:00'deki MLS maçı ESPN'de bir önceki gündedir) bir gün
  * öncesinden başlayarak tek istekte çekip Türkiye gününe göre süzüyoruz.
  */
-export async function getTrDays(code: string, from: string, to: string = from, store = true): Promise<Match[]> {
-  const espnFrom = ymd(shiftDays(parseYmd(from), -1));
-  const list = await source.scoreboardRange(code, espnFrom, to, store ? (isFresh(from, to) ? 20 : 600) : 0);
+export async function getTrDays(code: string, from: string, to: string = from, store = true, tz: string = currentTz()): Promise<Match[]> {
+  const espnFrom = ymd(shiftDays(parseYmd(from), -1), tz);
+  const list = await source.scoreboardRange(code, espnFrom, to, store ? (isFresh(from, to, tz) ? 20 : 600) : 0);
   const seen = new Set<string>();
   return list.filter((m) => {
     if (seen.has(m.id)) return false;
     seen.add(m.id);
-    const d = ymd(new Date(m.date));
+    const d = ymd(new Date(m.date), tz);
     return d >= from && d <= to;
   });
 }
@@ -67,10 +68,10 @@ export const MUST = new Set(["tur.1", "eng.1", "esp.1", "ita.1", "ger.1", "fra.1
 /** Bu sunucu örneğinde ana ligler en son ne zaman eksiksiz alındı */
 let lastComplete = 0;
 
-async function loadAllLeagueDays(from: string, to: string): Promise<(Match[] | null)[]> {
+async function loadAllLeagueDays(from: string, to: string, tz: string): Promise<(Match[] | null)[]> {
   // Lig başına istekler önbelleğe yazılmaz (store=false): sonucun tamamı aşağıdaki tek
   // unstable_cache kaydında tutuluyor. Eskiden her 20 sn'de 21 lig ayrı ayrı + 1 toplu kayıt yazılıyordu.
-  const load = (i: number) => getTrDays(LEAGUES[i].code, from, to, false).catch(() => null);
+  const load = (i: number) => getTrDays(LEAGUES[i].code, from, to, false, tz).catch(() => null);
   // Önemli ligler sıranın başına: ESPN yavaşken ilk onlar istenir
   const order = LEAGUES.map((_, i) => i).sort((a, b) => Number(MUST.has(LEAGUES[b].code)) - Number(MUST.has(LEAGUES[a].code)));
   const rs: (Match[] | null)[] = LEAGUES.map(() => null);
@@ -95,7 +96,9 @@ const allLeagueDaysFresh = unstable_cache(loadAllLeagueDays, KEY, { revalidate: 
 /** Geçmiş ya da ileri bir gün seçilince: skor değişmiyor, 10 dk */
 const allLeagueDaysPast = unstable_cache(loadAllLeagueDays, [...KEY, "gecmis"], { revalidate: 600 });
 
-export const getAllLeagueDays = (from: string, to: string) => (isFresh(from, to) ? allLeagueDaysFresh : allLeagueDaysPast)(from, to);
+/** Seçili saat diliminin günlerine göre; tz önbellek anahtarına girer (TR ve ABD ayrı kayıt) */
+export const getAllLeagueDays = (from: string, to: string, tz: string = currentTz()) =>
+  (isFresh(from, to, tz) ? allLeagueDaysFresh : allLeagueDaysPast)(from, to, tz);
 
 /**
  * Tahmin ekranı: önümüzdeki 7 günün maçları tek kayıtta (2 dk). Lig başına istekler önbelleğe yazılmaz.

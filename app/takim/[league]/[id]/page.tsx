@@ -130,7 +130,7 @@ export default async function TeamPage({
                 Son maçlar <span className="more">Tümü ›</span>
               </Link>
               {sched.past.slice(0, 5).map((m) => (
-                <MatchRow key={m.id} m={m} teamId={id} showDate />
+                <MatchRow key={m.id} m={m} teamId={id} showDate league={code} />
               ))}
             </section>
           )}
@@ -187,7 +187,7 @@ export default async function TeamPage({
             <section className="card">
               <div className="section-title">Fikstür</div>
               {sched.upcoming.slice(1, 8).map((m) => (
-                <MatchRow key={m.id} m={m} teamId={id} showDate />
+                <MatchRow key={m.id} m={m} teamId={id} showDate league={code} />
               ))}
             </section>
           )}
@@ -195,7 +195,7 @@ export default async function TeamPage({
             <section className="card">
               <div className="section-title">Son maçlar</div>
               {sched.past.map((m) => (
-                <MatchRow key={m.id} m={m} teamId={id} showDate />
+                <MatchRow key={m.id} m={m} teamId={id} showDate league={code} />
               ))}
             </section>
           )}
@@ -234,7 +234,7 @@ export default async function TeamPage({
               {stats.bigWin && (
                 <>
                   <div className="section-title">En farklı galibiyet</div>
-                  <MatchRow m={stats.bigWin} teamId={id} showDate />
+                  <MatchRow m={stats.bigWin} teamId={id} showDate league={code} />
                 </>
               )}
             </section>

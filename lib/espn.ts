@@ -349,16 +349,42 @@ export async function teamInfo(league: string, id: string): Promise<TeamInfo> {
   return { team: team(t), venue: t?.venue?.fullName, standingSummary: t?.standingSummary };
 }
 
+/** Kulüp liglerinin takımlarının ayrıca oynadığı kupalar (ESPN takım kimlikleri bütün turnuvalarda aynı) */
+const EURO_CUPS = ["uefa.champions", "uefa.europa", "uefa.europa.conf"];
+const TEAM_CUPS: Record<string, string[]> = {
+  "tur.1": EURO_CUPS,
+  "eng.1": [...EURO_CUPS, "eng.fa", "eng.league_cup"],
+  "esp.1": [...EURO_CUPS, "esp.copa_del_rey"],
+  "ita.1": [...EURO_CUPS, "ita.coppa_italia"],
+  "ger.1": [...EURO_CUPS, "ger.dfb_pokal"],
+  "fra.1": [...EURO_CUPS, "fra.coupe_de_france"],
+  "por.1": EURO_CUPS,
+  "ned.1": EURO_CUPS,
+  "bra.1": ["conmebol.libertadores"],
+  "arg.1": ["conmebol.libertadores"],
+};
+
 export async function teamSchedule(league: string, id: string): Promise<TeamSchedule> {
   const [past, next] = await Promise.allSettled([
     get(`${SITE}/${league}/teams/${id}/schedule`, 120),
     get(`${SITE}/${league}/teams/${id}/schedule?fixture=true`, 600),
   ]);
+  // Lig fikstürü ESPN'de yalnızca o ligin maçlarını veriyor: Avrupa kupası ve yerel kupa maçlarını ayrıca çek.
+  // Takım o kupada yoksa istek boş/hata döner, sessizce atlanır.
+  const cups = TEAM_CUPS[league] ?? [];
+  const cupRs = await Promise.allSettled(
+    cups.flatMap((c) => [
+      get(`${SITE}/${c}/teams/${id}/schedule`, 600).then((d) => events(d, c)),
+      get(`${SITE}/${c}/teams/${id}/schedule?fixture=true`, 1800).then((d) => events(d, c)),
+    ]),
+  );
   const all = new Map<string, Match>();
   for (const r of [past, next]) {
     if (r.status === "fulfilled") for (const m of events(r.value, league)) all.set(m.id, m);
   }
   if (past.status === "rejected" && next.status === "rejected") throw past.reason;
+  // Kupa maçının bağlantısı kendi turnuvasına gitsin (maç sayfası özetini o ligden ister)
+  for (const r of cupRs) if (r.status === "fulfilled") for (const m of r.value) if (!all.has(m.id)) all.set(m.id, m);
   const list = [...all.values()].filter((m) => m.date);
   return {
     past: list.filter((m) => m.state !== "pre").sort((a, b) => b.date.localeCompare(a.date)),

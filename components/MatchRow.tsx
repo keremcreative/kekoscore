@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Match, Side } from "@/lib/types";
 import { kickoff, shortDate } from "@/lib/format";
+import { compShort } from "@/lib/leagues";
 import { resultFor } from "@/lib/teamStats";
 import { ResultBadge } from "./Form";
 import { TeamLogo } from "./TeamLogo";
@@ -14,9 +15,10 @@ function statusLabel(m: Match) {
 
 /**
  * Tek maç satırı. `teamId` verilirse (takım sayfası) tarih ve o takımın
- * sonucu (G/B/M) gösterilir.
+ * sonucu (G/B/M) gösterilir. `league` verilirse başka turnuvanın maçında (Avrupa kupası, yerel kupa)
+ * turnuvanın kısa adı gösterilir.
  */
-export function MatchRow({ m, teamId, showDate, dayTag }: { m: Match; teamId?: string; showDate?: boolean; dayTag?: string }) {
+export function MatchRow({ m, teamId, showDate, dayTag, league }: { m: Match; teamId?: string; showDate?: boolean; dayTag?: string; league?: string }) {
   const live = m.state === "in";
   const pre = m.state === "pre";
   // Beraberlikte kimse "kaybeden" olarak soluklaşmasın
@@ -29,6 +31,7 @@ export function MatchRow({ m, teamId, showDate, dayTag }: { m: Match; teamId?: s
         {showDate && !live && <span className="status-date">{shortDate(m.date)}</span>}
         {!showDate && dayTag && !live && <span className="status-date">{dayTag}</span>}
         {statusLabel(m)}
+        {league && m.league !== league && <span className="comp-tag">{compShort(m.league)}</span>}
       </span>
       <span className={`${cls(m.home)} home`}>
         <span className="team-name">{m.home.team.short}</span>
