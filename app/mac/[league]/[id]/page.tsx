@@ -81,7 +81,7 @@ export default async function MatchPage({
 
   return (
     <>
-      <AutoRefresh active={live} seconds={20} />
+      <AutoRefresh active={live || (m.state === "pre" && new Date(m.date).getTime() - Date.now() < 3600e3)} seconds={20} />
       <Link href="/" className="back">‹ Maçlar</Link>
       <section className="card">
         <div className="hero">

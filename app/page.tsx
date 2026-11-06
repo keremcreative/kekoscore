@@ -86,7 +86,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   const favMatches = sections.flatMap((s) => s.matches.filter((m) => isFav(s.league.code, m))).sort((a, b) => a.date.localeCompare(b.date));
 
   const failed = results.filter((r) => r === null).length;
-  const anyLive = dayMatches.some((s) => s.all.some((m) => m.state === "in"));
+  // Canlı maç varsa ya da 2 saat içinde başlayacak maç varsa sayfa kendini yeniler (maç başlayınca da skor gelsin)
+  const soon = Date.now() + 2 * 3600e3;
+  const anyLive = dayMatches.some((s) => s.all.some((m) => m.state === "in" || (m.state === "pre" && new Date(m.date).getTime() < soon)));
 
   // En üstteki kart: ana liglerin, büyük kulüplerin ve favorilerin canlı maçları;
   // sonra yeni biten maçlar, sonra sıradaki maçlar. Küçük liglerin maçları burada yer kaplamasın.
@@ -109,7 +111,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
       .slice(0, 4)
       .map(async (f) => {
         // Grafik geç kalırsa kart grafiksiz açılır
-        f.momentum = await within(getMatch(f.league.code, f.match.id).then((d) => d.momentum), 1500);
+        f.momentum = await within(getMatch(f.league.code, f.match.id, 30).then((d) => d.momentum), 1500);
       }),
   );
 

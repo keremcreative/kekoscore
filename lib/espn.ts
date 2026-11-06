@@ -251,8 +251,12 @@ function h2h(data: J, league: string, home: Team, away: Team): Match[] {
   return out.sort((a, b) => b.date.localeCompare(a.date)).slice(0, 10);
 }
 
-export async function matchDetail(league: string, id: string): Promise<MatchDetail> {
-  const data = await get(`${SITE}/${league}/summary?event=${id}`, 15);
+/**
+ * revalidate varsayılan 0: maç sayfası her açılışta ESPN'den taze okunur. Önbellek "eskiyi göster,
+ * arkada yenile" çalıştığı için az kullanıcıda uzun süre önceki skor gösterilebiliyordu.
+ */
+export async function matchDetail(league: string, id: string, revalidate = 0): Promise<MatchDetail> {
+  const data = await get(`${SITE}/${league}/summary?event=${id}`, revalidate);
   const comp = data?.header?.competitions?.[0];
   const base = toMatch({ id, competitions: [comp] }, league);
   base.league = league;

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { unstable_cache } from "next/cache";
-import { getScoreboardRange } from "@/lib/data";
+import { getScoreboardRange, liveBucket } from "@/lib/data";
 import { kickoff, shiftDays, ymd } from "@/lib/format";
 import { MAIN_LEAGUES } from "@/lib/leagues";
 import type { Match } from "@/lib/types";
@@ -21,19 +21,20 @@ export function liveLabel(m: Match) {
  * eskiden her 20 sn'de lig x gün kadar (42) ayrı yazma oluyordu. Dün+bugün tek istekte.
  */
 const tickerMatches = unstable_cache(
-  async (yesterday: string, today: string): Promise<Match[]> => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async (yesterday: string, today: string, _bucket: number): Promise<Match[]> => {
     const rs = await Promise.allSettled(MAIN_LEAGUES.map((l) => getScoreboardRange(l.code, yesterday, today, 0)));
     const seen = new Set<string>();
     return rs.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter((m) => !seen.has(m.id) && seen.add(m.id));
   },
-  ["bant-v1", process.env.DATA_SOURCE ?? "espn"],
-  { revalidate: 20 },
+  ["bant-v2", process.env.DATA_SOURCE ?? "espn"],
+  { revalidate: 60 },
 );
 
 export async function Ticker() {
   const now = new Date();
   const days = [ymd(shiftDays(now, -1)), ymd(now)];
-  const all = await tickerMatches(days[0], days[1]);
+  const all = await tickerMatches(days[0], days[1], liveBucket()); // 15 sn'lik dilim: eski skor gösterilmez
   const t = now.getTime();
   const live = all.filter((m) => m.state === "in");
   const done = all

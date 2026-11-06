@@ -68,7 +68,8 @@ export const MUST = new Set(["tur.1", "eng.1", "esp.1", "ita.1", "ger.1", "fra.1
 /** Bu sunucu örneğinde ana ligler en son ne zaman eksiksiz alındı */
 let lastComplete = 0;
 
-async function loadAllLeagueDays(from: string, to: string, tz: string): Promise<(Match[] | null)[]> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+async function loadAllLeagueDays(from: string, to: string, tz: string, _bucket: number): Promise<(Match[] | null)[]> {
   // Lig başına istekler önbelleğe yazılmaz (store=false): sonucun tamamı aşağıdaki tek
   // unstable_cache kaydında tutuluyor. Eskiden her 20 sn'de 21 lig ayrı ayrı + 1 toplu kayıt yazılıyordu.
   const load = (i: number) => getTrDays(LEAGUES[i].code, from, to, false, tz).catch(() => null);
@@ -92,13 +93,21 @@ async function loadAllLeagueDays(from: string, to: string, tz: string): Promise<
 
 const KEY = ["tum-ligler-v2", process.env.DATA_SOURCE ?? "espn"];
 /** Bugün/dün/ileri günler: skorlar değişiyor, 20 sn */
-const allLeagueDaysFresh = unstable_cache(loadAllLeagueDays, KEY, { revalidate: 20 });
+const allLeagueDaysFresh = unstable_cache(loadAllLeagueDays, [...KEY, "dilim"], { revalidate: 60 });
 /** Geçmiş ya da ileri bir gün seçilince: skor değişmiyor, 10 dk */
 const allLeagueDaysPast = unstable_cache(loadAllLeagueDays, [...KEY, "gecmis"], { revalidate: 600 });
 
+/**
+ * unstable_cache süresi dolan kaydı bir kez daha ESKİ haliyle döndürüp arkada yeniler. Uygulamayı az kişi
+ * kullandığı için bu "eski" kayıt 20 dakikalık olabiliyordu (gol 20 dk sonra görünüyordu). Bu yüzden
+ * canlı veride anahtara 15 sn'lik zaman dilimi eklenir: her dilimde yeni kayıt, eski skor asla gösterilmez.
+ * Aynı dilimdeki ziyaretler aynı kaydı paylaşır; kimse bakmıyorsa hiç yazma olmaz.
+ */
+export const liveBucket = () => Math.floor(Date.now() / 15000);
+
 /** Seçili saat diliminin günlerine göre; tz önbellek anahtarına girer (TR ve ABD ayrı kayıt) */
 export const getAllLeagueDays = (from: string, to: string, tz: string = currentTz()) =>
-  (isFresh(from, to, tz) ? allLeagueDaysFresh : allLeagueDaysPast)(from, to, tz);
+  isFresh(from, to, tz) ? allLeagueDaysFresh(from, to, tz, liveBucket()) : allLeagueDaysPast(from, to, tz, 0);
 
 /**
  * Tahmin ekranı: önümüzdeki 7 günün maçları tek kayıtta (2 dk). Lig başına istekler önbelleğe yazılmaz.
