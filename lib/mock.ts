@@ -105,7 +105,7 @@ function lineup(t: Team, side: "home" | "away"): Lineup {
   };
 }
 
-export async function matchDetail(league: string, id: string): Promise<MatchDetail> {
+export async function matchDetail(league: string, id: string, _revalidate?: number): Promise<MatchDetail> {
   const all = season(league);
   const m = all.find((x) => x.id === id);
   if (!m) throw new Error("Maç bulunamadı");

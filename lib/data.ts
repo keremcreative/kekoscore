@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { memo } from "./memo";
 import { LEAGUES, leagueByCode } from "./leagues";
 import { teamCoach } from "./wiki";
 import type { Coach, LeagueLogo, Match, Team } from "./types";
@@ -90,15 +91,35 @@ async function loadAllLeagueDays(from: string, to: string, tz: string): Promise<
   return rs;
 }
 
-const KEY = ["tum-ligler-v2", process.env.DATA_SOURCE ?? "espn"];
-/** Bugün/dün/ileri günler: skorlar değişiyor, 20 sn */
-const allLeagueDaysFresh = unstable_cache(loadAllLeagueDays, KEY, { revalidate: 20 });
+const KEY = ["tum-ligler-v2", process.env.DATA_SOURCE ?? "espn", "gecmis"];
 /** Geçmiş ya da ileri bir gün seçilince: skor değişmiyor, 10 dk */
-const allLeagueDaysPast = unstable_cache(loadAllLeagueDays, [...KEY, "gecmis"], { revalidate: 600 });
+const allLeagueDaysPast = unstable_cache(loadAllLeagueDays, KEY, { revalidate: 600 });
 
-/** Seçili saat diliminin günlerine göre; tz önbellek anahtarına girer (TR ve ABD ayrı kayıt) */
+/** Canlı veri için bellekte tutma süresi */
+export const LIVE_TTL = 15_000;
+
+/**
+ * Seçili saat diliminin günlerine göre. Bugün/dün (canlı) Vercel önbelleğine konmaz: unstable_cache süresi
+ * dolan kaydı bir kez eski haliyle döndürüyor ve az kullanıcıda bu kayıt 20 dk eski olabiliyordu (gol geç
+ * görünüyordu). Canlı veri sunucu belleğinde 15 sn tutulur (önbellek yazma kotası harcamaz).
+ */
 export const getAllLeagueDays = (from: string, to: string, tz: string = currentTz()) =>
-  (isFresh(from, to, tz) ? allLeagueDaysFresh : allLeagueDaysPast)(from, to, tz);
+  isFresh(from, to, tz) ? memo(`gunler:${from}:${to}:${tz}`, LIVE_TTL, () => loadLive(from, to, tz)) : allLeagueDaysPast(from, to, tz);
+
+/** Son eksiksiz canlı liste: ana ligler o an alınamazsa (en fazla 3 dk) bu gösterilir, ana sayfa yarım açılmaz */
+const lastGood = new Map<string, { at: number; v: (Match[] | null)[] }>();
+async function loadLive(from: string, to: string, tz: string): Promise<(Match[] | null)[]> {
+  const key = `${from}:${to}:${tz}`;
+  try {
+    const v = await loadAllLeagueDays(from, to, tz);
+    lastGood.set(key, { at: Date.now(), v });
+    return v;
+  } catch (e) {
+    const g = lastGood.get(key);
+    if (g && Date.now() - g.at < 180e3) return g.v;
+    throw e;
+  }
+}
 
 /**
  * Tahmin ekranı: önümüzdeki 7 günün maçları tek kayıtta (2 dk). Lig başına istekler önbelleğe yazılmaz.
