@@ -1,4 +1,5 @@
 import { unstable_cache } from "next/cache";
+import { memo } from "./memo";
 import { LEAGUES, leagueByCode } from "./leagues";
 import { teamCoach } from "./wiki";
 import type { Coach, LeagueLogo, Match, Team } from "./types";
@@ -68,8 +69,7 @@ export const MUST = new Set(["tur.1", "eng.1", "esp.1", "ita.1", "ger.1", "fra.1
 /** Bu sunucu örneğinde ana ligler en son ne zaman eksiksiz alındı */
 let lastComplete = 0;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-async function loadAllLeagueDays(from: string, to: string, tz: string, _bucket: number): Promise<(Match[] | null)[]> {
+async function loadAllLeagueDays(from: string, to: string, tz: string): Promise<(Match[] | null)[]> {
   // Lig başına istekler önbelleğe yazılmaz (store=false): sonucun tamamı aşağıdaki tek
   // unstable_cache kaydında tutuluyor. Eskiden her 20 sn'de 21 lig ayrı ayrı + 1 toplu kayıt yazılıyordu.
   const load = (i: number) => getTrDays(LEAGUES[i].code, from, to, false, tz).catch(() => null);
@@ -91,23 +91,35 @@ async function loadAllLeagueDays(from: string, to: string, tz: string, _bucket: 
   return rs;
 }
 
-const KEY = ["tum-ligler-v2", process.env.DATA_SOURCE ?? "espn"];
-/** Bugün/dün/ileri günler: skorlar değişiyor, 20 sn */
-const allLeagueDaysFresh = unstable_cache(loadAllLeagueDays, [...KEY, "dilim"], { revalidate: 60 });
+const KEY = ["tum-ligler-v2", process.env.DATA_SOURCE ?? "espn", "gecmis"];
 /** Geçmiş ya da ileri bir gün seçilince: skor değişmiyor, 10 dk */
-const allLeagueDaysPast = unstable_cache(loadAllLeagueDays, [...KEY, "gecmis"], { revalidate: 600 });
+const allLeagueDaysPast = unstable_cache(loadAllLeagueDays, KEY, { revalidate: 600 });
+
+/** Canlı veri için bellekte tutma süresi */
+export const LIVE_TTL = 15_000;
 
 /**
- * unstable_cache süresi dolan kaydı bir kez daha ESKİ haliyle döndürüp arkada yeniler. Uygulamayı az kişi
- * kullandığı için bu "eski" kayıt 20 dakikalık olabiliyordu (gol 20 dk sonra görünüyordu). Bu yüzden
- * canlı veride anahtara 15 sn'lik zaman dilimi eklenir: her dilimde yeni kayıt, eski skor asla gösterilmez.
- * Aynı dilimdeki ziyaretler aynı kaydı paylaşır; kimse bakmıyorsa hiç yazma olmaz.
+ * Seçili saat diliminin günlerine göre. Bugün/dün (canlı) Vercel önbelleğine konmaz: unstable_cache süresi
+ * dolan kaydı bir kez eski haliyle döndürüyor ve az kullanıcıda bu kayıt 20 dk eski olabiliyordu (gol geç
+ * görünüyordu). Canlı veri sunucu belleğinde 15 sn tutulur (önbellek yazma kotası harcamaz).
  */
-export const liveBucket = () => Math.floor(Date.now() / 15000);
-
-/** Seçili saat diliminin günlerine göre; tz önbellek anahtarına girer (TR ve ABD ayrı kayıt) */
 export const getAllLeagueDays = (from: string, to: string, tz: string = currentTz()) =>
-  isFresh(from, to, tz) ? allLeagueDaysFresh(from, to, tz, liveBucket()) : allLeagueDaysPast(from, to, tz, 0);
+  isFresh(from, to, tz) ? memo(`gunler:${from}:${to}:${tz}`, LIVE_TTL, () => loadLive(from, to, tz)) : allLeagueDaysPast(from, to, tz);
+
+/** Son eksiksiz canlı liste: ana ligler o an alınamazsa (en fazla 3 dk) bu gösterilir, ana sayfa yarım açılmaz */
+const lastGood = new Map<string, { at: number; v: (Match[] | null)[] }>();
+async function loadLive(from: string, to: string, tz: string): Promise<(Match[] | null)[]> {
+  const key = `${from}:${to}:${tz}`;
+  try {
+    const v = await loadAllLeagueDays(from, to, tz);
+    lastGood.set(key, { at: Date.now(), v });
+    return v;
+  } catch (e) {
+    const g = lastGood.get(key);
+    if (g && Date.now() - g.at < 180e3) return g.v;
+    throw e;
+  }
+}
 
 /**
  * Tahmin ekranı: önümüzdeki 7 günün maçları tek kayıtta (2 dk). Lig başına istekler önbelleğe yazılmaz.

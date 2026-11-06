@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { unstable_cache } from "next/cache";
-import { getScoreboardRange, liveBucket } from "@/lib/data";
+import { memo } from "@/lib/memo";
+import { LIVE_TTL, getScoreboardRange } from "@/lib/data";
 import { kickoff, shiftDays, ymd } from "@/lib/format";
 import { MAIN_LEAGUES } from "@/lib/leagues";
 import type { Match } from "@/lib/types";
@@ -17,24 +17,21 @@ export function liveLabel(m: Match) {
  * maçların sonuçları (en yenisi önde), sonra bugünün sıradaki maçları.
  */
 /**
- * Bandın maçları tek önbellek kaydında (20 sn). Lig başına istekler önbelleğe yazılmaz (0):
- * eskiden her 20 sn'de lig x gün kadar (42) ayrı yazma oluyordu. Dün+bugün tek istekte.
+ * Bandın maçları sunucu belleğinde 15 sn (Vercel önbelleğine yazılmaz; eski skor gösterilmez).
+ * Lig başına istekler de önbelleğe yazılmaz (0). Dün+bugün tek istekte.
  */
-const tickerMatches = unstable_cache(
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async (yesterday: string, today: string, _bucket: number): Promise<Match[]> => {
+const tickerMatches = (yesterday: string, today: string): Promise<Match[]> =>
+  memo(`bant:${yesterday}:${today}`, LIVE_TTL, async () => {
     const rs = await Promise.allSettled(MAIN_LEAGUES.map((l) => getScoreboardRange(l.code, yesterday, today, 0)));
+    if (rs.every((r) => r.status === "rejected")) throw new Error("ESPN'den bant alınamadı");
     const seen = new Set<string>();
     return rs.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter((m) => !seen.has(m.id) && seen.add(m.id));
-  },
-  ["bant-v2", process.env.DATA_SOURCE ?? "espn"],
-  { revalidate: 60 },
-);
+  });
 
 export async function Ticker() {
   const now = new Date();
   const days = [ymd(shiftDays(now, -1)), ymd(now)];
-  const all = await tickerMatches(days[0], days[1], liveBucket()); // 15 sn'lik dilim: eski skor gösterilmez
+  const all = await tickerMatches(days[0], days[1]).catch(() => [] as Match[]);
   const t = now.getTime();
   const live = all.filter((m) => m.state === "in");
   const done = all
