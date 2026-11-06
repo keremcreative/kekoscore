@@ -8,6 +8,7 @@ import { TzSwitch } from "@/components/TzSwitch";
 import { SearchIcon } from "@/components/SearchBox";
 import { NotifPrompt } from "@/components/social/NotifPrompt";
 import { initTz } from "@/lib/tz";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -48,6 +49,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <main className="wrap">{children}</main>
         <ServiceWorker />
         <NotifPrompt />
+        {/* Ziyaretçi sayısı (Vercel Web Analytics): çerezsiz, kişiyi tanımaz */}
+        <Analytics />
         <Suspense>
           <TabBar />
         </Suspense>
