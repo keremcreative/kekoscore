@@ -65,9 +65,8 @@ function noteError(e: unknown) {
 }
 
 /**
- * ESPN "çok istek" (429) ya da "yasak" (403) dönerse bir süre hiç istek gönderilmez. Eskiden her hata
- * yeniden deneniyor, aralık sorgusu da gün gün tekrar isteniyordu: tek ana sayfa açılışı ~400 isteğe
- * çıkıyor ve ESPN sınırı hiç kalkmıyordu (ana sayfa sürekli "skorlar alınamadı").
+ * ESPN "çok istek" (429) dönerse bir süre hiç istek gönderilmez; yoksa ESPN'in sınırı hiç kalkmıyor.
+ * 403 burada sayılmaz: ESPN bazı sorgu biçimlerini (ör. tarih aralığı) kendiliğinden reddedebiliyor.
  */
 const COOL_MS = 20_000;
 let coolUntil = 0;
@@ -86,7 +85,7 @@ async function get(url: string, revalidate: number): Promise<J> {
       }
       last = Object.assign(new Error(`ESPN ${res.status}`), { status: res.status });
       noteError(last);
-      if (res.status === 429 || res.status === 403) {
+      if (res.status === 429) {
         coolUntil = Date.now() + COOL_MS;
         break;
       }
@@ -157,30 +156,71 @@ function toMatch(ev: J, league: string): Match {
 
 const events = (data: J, league: string): Match[] => (data?.events ?? []).map((e: J) => toMatch(e, league));
 
+/**
+ * ESPN'in önündeki CDN, aynı adrese bazen dakikalarca (hatta saatlerce) eski cevap veriyor: 12 Kasım'da biten
+ * maçlar "14. dk canlı" ya da "başlamadı" olarak geliyordu. Adrese zamana bağlı bir parametre eklenince taze cevap
+ * geliyor. Parametre `seconds` saniyede bir değişir (her istekte değil: ESPN'e gereksiz yük olmasın).
+ */
+const fresh = (seconds: number) => `&_t=${Math.floor(Date.now() / (seconds * 1000))}`;
+/** Canlı sorgular (önbelleksiz) 10 sn'lik, kısa önbellekliler kendi süresi kadar, uzunlar parametresiz */
+const bust = (revalidate: number) => (revalidate <= 0 ? fresh(10) : revalidate <= 120 ? fresh(revalidate) : "");
+
 export async function scoreboard(league: string, yyyymmdd: string, revalidate = 20): Promise<Match[]> {
-  return events(await get(`${SITE}/${league}/scoreboard?dates=${yyyymmdd}`, revalidate), league);
+  return events(await get(`${SITE}/${league}/scoreboard?dates=${yyyymmdd}${bust(revalidate)}`, revalidate), league);
 }
 
-/** Tarih aralığındaki maçlar (YYYYMMDD-YYYYMMDD) */
+function daysBetween(from: string, to: string): string[] {
+  const days: string[] = [];
+  const d = new Date(`${from.slice(0, 4)}-${from.slice(4, 6)}-${from.slice(6, 8)}T12:00:00Z`);
+  const end = `${to.slice(0, 4)}-${to.slice(4, 6)}-${to.slice(6, 8)}`;
+  while (d.toISOString().slice(0, 10) <= end && days.length < 15) {
+    days.push(d.toISOString().slice(0, 10).replace(/-/g, ""));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+  return days;
+}
+
+/** Günleri tek tek iste. Hepsi alınamazsa hata; bir kısmı alınamazsa eldekiler. */
+async function scoreboardDays(league: string, days: string[], revalidate: number): Promise<Match[]> {
+  const rs = await Promise.allSettled(days.map((x) => scoreboard(league, x, revalidate)));
+  const bad = rs.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+  // Canlı listede (kısa aralık) bir gün eksikse yarım liste döndürme: maçlar sessizce kaybolmasın
+  if (bad && (days.length <= 3 || rs.every((r) => r.status === "rejected"))) throw bad.reason;
+  const seen = new Set<string>();
+  return rs.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter((m) => !seen.has(m.id) && !!seen.add(m.id));
+}
+
+/**
+ * Tarih aralığındaki maçlar (YYYYMMDD-YYYYMMDD).
+ * 3 güne kadar (ana sayfa, bant, bildirim taraması): günler tek tek istenir. Aralık sorgusu (dates=A-B)
+ * güvenilir değil: bazen reddediliyor, bazen CDN'den eski cevap geliyor.
+ * Daha uzun aralıklar (haftalık fikstür, tahmin): önce aralık sorgusu, olmazsa gün gün.
+ */
 export async function scoreboardRange(league: string, from: string, to: string, revalidate = 60): Promise<Match[]> {
+  const days = daysBetween(from, to);
+  if (days.length <= 3) return scoreboardDays(league, days, revalidate);
   try {
-    return events(await get(`${SITE}/${league}/scoreboard?dates=${from}-${to}&limit=200`, revalidate), league);
+    return events(await get(`${SITE}/${league}/scoreboard?dates=${from}-${to}&limit=200${bust(revalidate)}`, revalidate), league);
   } catch (e) {
-    // Aralık sorgusu reddedilirse (400/404) günleri tek tek çek. Zaman aşımı, 429 ya da 5xx'te ÇEKME:
-    // ESPN zaten zorlanıyor, gün gün istemek isteği 3-7 katına çıkarıp sorunu büyütüyordu.
-    const status = (e as { status?: number }).status;
-    if (status !== 400 && status !== 404) throw e;
-    const days: string[] = [];
-    const d = new Date(`${from.slice(0, 4)}-${from.slice(4, 6)}-${from.slice(6, 8)}T12:00:00Z`);
-    const end = `${to.slice(0, 4)}-${to.slice(4, 6)}-${to.slice(6, 8)}`;
-    while (d.toISOString().slice(0, 10) <= end && days.length < 15) {
-      days.push(d.toISOString().slice(0, 10).replace(/-/g, ""));
-      d.setUTCDate(d.getUTCDate() + 1);
-    }
-    const rs = await Promise.allSettled(days.map((x) => scoreboard(league, x, revalidate)));
-    if (rs.every((r) => r.status === "rejected")) throw e;
-    const seen = new Set<string>();
-    return rs.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter((m) => !seen.has(m.id) && !!seen.add(m.id));
+    // 429'da gün gün isteme: ESPN zaten "çok istek" diyor, isteği katlamak sınırı uzatır
+    if ((e as { status?: number }).status === 429) throw e;
+    return scoreboardDays(league, days, revalidate);
+  }
+}
+
+/** Teşhis (/api/durum): bir adresin ESPN'den nasıl döndüğü */
+export async function probe(path: string): Promise<{ url: string; status: number | string; ms: number; events?: number; pre?: number; live?: number; post?: number; age?: string | null; cache?: string | null }> {
+  const url = `${SITE}/${path}`;
+  const t = Date.now();
+  try {
+    const res = await fetch(url, { cache: "no-store", headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) });
+    const out = { url: path, status: res.status, ms: 0, age: res.headers.get("age"), cache: res.headers.get("x-cache") ?? res.headers.get("cache-control") };
+    if (!res.ok) return { ...out, ms: Date.now() - t };
+    const j = await res.json();
+    const st = (j?.events ?? []).map((e: J) => e?.status?.type?.state ?? e?.competitions?.[0]?.status?.type?.state);
+    return { ...out, ms: Date.now() - t, events: st.length, pre: st.filter((x: string) => x === "pre").length, live: st.filter((x: string) => x === "in").length, post: st.filter((x: string) => x === "post").length };
+  } catch (e) {
+    return { url: path, status: (e as Error)?.name ?? "hata", ms: Date.now() - t };
   }
 }
 

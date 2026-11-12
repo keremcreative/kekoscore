@@ -1,8 +1,7 @@
 import Link from "next/link";
-import { memo } from "@/lib/memo";
-import { LIVE_TTL, getScoreboardRange } from "@/lib/data";
+import { getAllLeagueDays } from "@/lib/data";
 import { kickoff, shiftDays, ymd } from "@/lib/format";
-import { MAIN_LEAGUES } from "@/lib/leagues";
+import { LEAGUES } from "@/lib/leagues";
 import type { Match } from "@/lib/types";
 import { TeamLogo } from "./TeamLogo";
 import { Marquee } from "./Marquee";
@@ -17,16 +16,13 @@ export function liveLabel(m: Match) {
  * maçların sonuçları (en yenisi önde), sonra bugünün sıradaki maçları.
  */
 /**
- * Bandın maçları sunucu belleğinde 15 sn (Vercel önbelleğine yazılmaz; eski skor gösterilmez).
- * Lig başına istekler de önbelleğe yazılmaz (0). Dün+bugün tek istekte.
+ * Bant, ana sayfanın dün+bugün listesini kullanır (aynı 15 sn'lik bellek kaydı): ESPN'e ayrıca istek gitmez.
  */
-const tickerMatches = (yesterday: string, today: string): Promise<Match[]> =>
-  memo(`bant:${yesterday}:${today}`, LIVE_TTL, async () => {
-    const rs = await Promise.allSettled(MAIN_LEAGUES.map((l) => getScoreboardRange(l.code, yesterday, today, 0)));
-    if (rs.every((r) => r.status === "rejected")) throw new Error("ESPN'den bant alınamadı");
-    const seen = new Set<string>();
-    return rs.flatMap((r) => (r.status === "fulfilled" ? r.value : [])).filter((m) => !seen.has(m.id) && seen.add(m.id));
-  });
+const tickerMatches = async (yesterday: string, today: string): Promise<Match[]> => {
+  const rs = await getAllLeagueDays(yesterday, today);
+  const seen = new Set<string>();
+  return LEAGUES.flatMap((l, i) => (l.tier === 1 ? (rs[i] ?? []) : [])).filter((m) => !seen.has(m.id) && !!seen.add(m.id));
+};
 
 export async function Ticker() {
   const now = new Date();
