@@ -86,7 +86,7 @@ async function loadAllLeagueDays(from: string, to: string, tz: string): Promise<
     // Hâlâ eksikse kaydetme: önbellekteki son eksiksiz liste gösterilmeye devam eder
     // (Şampiyonlar Ligi'nin ana sayfadan kaybolması yerine birkaç saniyelik eski skor).
     // Ama ESPN uzun süre sorun çıkarırsa skorlar donmasın diye 3 dakikadan sonra eksik haliyle yaz.
-    if (Date.now() - lastComplete < 180e3) throw new Error("Ana ligler alınamadı");
+    if (Date.now() - lastComplete < 180e3) throw Object.assign(new Error("Ana ligler alınamadı"), { partial: rs });
   } else lastComplete = Date.now();
   return rs;
 }
@@ -117,6 +117,10 @@ async function loadLive(from: string, to: string, tz: string): Promise<(Match[] 
   } catch (e) {
     const g = lastGood.get(key);
     if (g && Date.now() - g.at < 180e3) return g.v;
+    // Bu sunucu örneğinde son eksiksiz liste yoksa elde edilenleri at(ma): eskiden burada hata fırlatılıyordu,
+    // sayfa 28 ligi baştan isteyip çoğu zaman yetişemiyor ve "Veri kaynağına ulaşılamadı" ekranı çıkıyordu.
+    const partial = (e as { partial?: (Match[] | null)[] }).partial;
+    if (partial) return partial;
     throw e;
   }
 }
