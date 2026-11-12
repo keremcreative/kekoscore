@@ -56,17 +56,44 @@ async function slot<T>(fn: () => Promise<T>): Promise<T> {
  */
 const cacheOpt = (revalidate: number): RequestInit => (revalidate > 0 ? { next: { revalidate } } : { cache: "no-store" });
 
+/** ESPN'den en son alınan hata (ana sayfada "skorlar alınamadı" ekranında sebebi göstermek için) */
+export const espnHealth = { lastError: "", lastErrorAt: 0, lastOkAt: 0 };
+function noteError(e: unknown) {
+  const err = e as { name?: string; message?: string; cause?: { code?: string } };
+  espnHealth.lastError = err?.name === "TimeoutError" ? "zaman aşımı (8 sn)" : err?.cause?.code ?? err?.message?.slice(0, 80) ?? String(e);
+  espnHealth.lastErrorAt = Date.now();
+}
+
+/**
+ * ESPN "çok istek" (429) ya da "yasak" (403) dönerse bir süre hiç istek gönderilmez. Eskiden her hata
+ * yeniden deneniyor, aralık sorgusu da gün gün tekrar isteniyordu: tek ana sayfa açılışı ~400 isteğe
+ * çıkıyor ve ESPN sınırı hiç kalkmıyordu (ana sayfa sürekli "skorlar alınamadı").
+ */
+const COOL_MS = 20_000;
+let coolUntil = 0;
+
 async function get(url: string, revalidate: number): Promise<J> {
+  if (Date.now() < coolUntil) throw Object.assign(new Error("ESPN istek sınırı, bekleniyor"), { status: 429 });
   let last: unknown;
   // Zaman aşımı ya da 5xx'te bir kez daha dene
   for (let i = 0; i < 2; i++) {
     try {
       const res = await slot(() => fetch(url, { ...cacheOpt(revalidate), headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) }));
-      if (res.ok) return await res.json();
-      last = new Error(`ESPN ${res.status}: ${url}`);
-      if (res.status < 500 && res.status !== 429) break;
+      if (res.ok) {
+        const j = await res.json();
+        espnHealth.lastOkAt = Date.now();
+        return j;
+      }
+      last = Object.assign(new Error(`ESPN ${res.status}`), { status: res.status });
+      noteError(last);
+      if (res.status === 429 || res.status === 403) {
+        coolUntil = Date.now() + COOL_MS;
+        break;
+      }
+      if (res.status < 500) break;
     } catch (e) {
       last = e;
+      noteError(e);
     }
   }
   throw last;
@@ -139,7 +166,10 @@ export async function scoreboardRange(league: string, from: string, to: string, 
   try {
     return events(await get(`${SITE}/${league}/scoreboard?dates=${from}-${to}&limit=200`, revalidate), league);
   } catch (e) {
-    // Aralık sorgusu reddedilirse günleri tek tek çek
+    // Aralık sorgusu reddedilirse (400/404) günleri tek tek çek. Zaman aşımı, 429 ya da 5xx'te ÇEKME:
+    // ESPN zaten zorlanıyor, gün gün istemek isteği 3-7 katına çıkarıp sorunu büyütüyordu.
+    const status = (e as { status?: number }).status;
+    if (status !== 400 && status !== 404) throw e;
     const days: string[] = [];
     const d = new Date(`${from.slice(0, 4)}-${from.slice(4, 6)}-${from.slice(6, 8)}T12:00:00Z`);
     const end = `${to.slice(0, 4)}-${to.slice(4, 6)}-${to.slice(6, 8)}`;

@@ -6,7 +6,7 @@ import { SearchIcon } from "@/components/SearchBox";
 import { LeagueIcon } from "@/components/LeagueIcon";
 import { LiveHero, type Featured } from "@/components/LiveHero";
 import { MatchRow } from "@/components/MatchRow";
-import { MUST, getAllLeagueDays, getLeagueLogosCached, getMatch, getTrDays } from "@/lib/data";
+import { MUST, espnWhy, getAllLeagueDays, getLeagueLogosCached, getMatch, getTrDays } from "@/lib/data";
 import { hourNow, parseYmd, shiftDays, ymd } from "@/lib/format";
 import { LEAGUES, compareLeagues } from "@/lib/leagues";
 import { serverFavs } from "@/lib/favsServer";
@@ -49,8 +49,11 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   // ve Avrupa kupaları ana sayfadan asla kaybolmasın diye 7 sn'ye kadar beklenir ve önce onlar istenir.
   const retry = (i: number) => within(getTrDays(LEAGUES[i].code, from, key), MUST.has(LEAGUES[i].code) ? 7000 : 2000).then((x) => x ?? null);
   const results: (Match[] | null)[] = [...cached];
-  const mustIdx = cached.map((r, i) => i).filter((i) => !cached[i] && MUST.has(LEAGUES[i].code));
-  const restIdx = cached.map((r, i) => i).filter((i) => !cached[i] && !MUST.has(LEAGUES[i].code));
+  // Hiçbir lig gelmediyse ESPN şu an cevap vermiyor: 28 ligi hemen yeniden istemek ESPN'i daha da
+  // zorlar (istek sınırı) ve sayfayı 7 sn bekletir. O durumda yeniden deneme yapılmaz.
+  const espnDown = cached.every((r) => r === null);
+  const mustIdx = espnDown ? [] : cached.map((r, i) => i).filter((i) => !cached[i] && MUST.has(LEAGUES[i].code));
+  const restIdx = espnDown ? [] : cached.map((r, i) => i).filter((i) => !cached[i] && !MUST.has(LEAGUES[i].code));
   const mustP = Promise.all(mustIdx.map(async (i) => (results[i] = await retry(i))));
   await Promise.all([mustP, ...restIdx.map(async (i) => (results[i] = await retry(i)))]);
   const keepYesterday = hourNow(now) < KEEP_YESTERDAY_UNTIL;
@@ -117,14 +120,17 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
 
   return (
     <>
-      {/* ESPN o an hiç cevap vermediyse sayfa 10 sn sonra kendini yeniden dener */}
-      <AutoRefresh active={anyLive || failed === LEAGUES.length} seconds={failed === LEAGUES.length ? 10 : 30} />
+      {/* ESPN o an hiç cevap vermediyse sayfa 20 sn sonra kendini yeniden dener */}
+      <AutoRefresh active={anyLive || failed === LEAGUES.length} seconds={failed === LEAGUES.length ? 20 : 30} />
       {isToday && <LiveHero items={featured.slice(0, 10)} logos={logos} />}
       <Link href="/ara" className="search-box">
         <SearchIcon /> Takım, lig veya ülke ara
       </Link>
       <DateNav selected={date} filter={filter} />
-      {failed === LEAGUES.length && <p className="notice error">Skorlar şu an alınamadı, birkaç saniye içinde yeniden denenecek.</p>}
+      {failed === LEAGUES.length && <p className="notice error">
+          Skorlar şu an alınamadı, birkaç saniye içinde yeniden denenecek.
+          <small className="err-why">{espnWhy()}</small>
+        </p>}
       {sections.length === 0 && failed < LEAGUES.length && (
         <p className="empty">{filter === "canli" ? "Şu an canlı maç yok." : filter === "biten" ? "Henüz biten maç yok." : "Bu tarihte maç yok."}</p>
       )}
