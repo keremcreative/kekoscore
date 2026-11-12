@@ -732,3 +732,4 @@ button.top-search:disabled { opacity: 1; color: var(--accent); }
 .top-refresh.spin { color: var(--accent); }
 .top-refresh.spin svg { animation: refresh-spin 0.8s linear infinite; }
 @keyframes refresh-spin { to { transform: rotate(360deg); } }
+.err-why { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }

@@ -49,6 +49,15 @@ export async function getLeagueLogos(): Promise<Record<string, LeagueLogo>> {
   return Object.fromEntries(LEAGUES.map((l, i) => [l.code, rs[i].status === "fulfilled" ? (rs[i] as PromiseFulfilledResult<LeagueLogo>).value : {}]));
 }
 
+/** Ana sayfadaki hata ekranı için kısa sebep: "ESPN cevabı: 429 · son başarılı 5 dk önce" */
+export function espnWhy(): string {
+  if (process.env.DATA_SOURCE === "mock") return "";
+  const h = espn.espnHealth;
+  if (!h.lastError) return "";
+  const ago = (t: number) => (t ? `${Math.max(1, Math.round((Date.now() - t) / 60e3))} dk önce` : "bu sunucuda hiç");
+  return `Sebep: ${h.lastError} · son başarılı istek ${ago(h.lastOkAt)}`;
+}
+
 export const dataSourceName = process.env.DATA_SOURCE === "mock" ? "Örnek veri" : "ESPN";
 
 /** Takımın teknik direktörü. ESPN vermediği için Wikidata'dan; bulunamazsa undefined. */
@@ -108,8 +117,15 @@ export const getAllLeagueDays = (from: string, to: string, tz: string = currentT
 
 /** Son eksiksiz canlı liste: ana ligler o an alınamazsa (en fazla 3 dk) bu gösterilir, ana sayfa yarım açılmaz */
 const lastGood = new Map<string, { at: number; v: (Match[] | null)[] }>();
+/** ESPN hiç cevap vermediyse 5 sn boyunca yeniden denenmez (her yenileme 28 istek daha göndermesin) */
+const lastFail = new Map<string, number>();
 async function loadLive(from: string, to: string, tz: string): Promise<(Match[] | null)[]> {
   const key = `${from}:${to}:${tz}`;
+  const g0 = lastGood.get(key);
+  if (Date.now() - (lastFail.get(key) ?? 0) < 5e3) {
+    if (g0 && Date.now() - g0.at < 180e3) return g0.v;
+    throw new Error("ESPN az önce cevap vermedi");
+  }
   try {
     const v = await loadAllLeagueDays(from, to, tz);
     lastGood.set(key, { at: Date.now(), v });
@@ -121,6 +137,7 @@ async function loadLive(from: string, to: string, tz: string): Promise<(Match[] 
     // sayfa 28 ligi baştan isteyip çoğu zaman yetişemiyor ve "Veri kaynağına ulaşılamadı" ekranı çıkıyordu.
     const partial = (e as { partial?: (Match[] | null)[] }).partial;
     if (partial) return partial;
+    lastFail.set(key, Date.now());
     throw e;
   }
 }

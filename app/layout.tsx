@@ -36,10 +36,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img className="brand-mark" src="/icon.svg" alt="" width={28} height={28} /> kekoscore
           </Link>
+          <RefreshButton />
           <Link href="/ara" className="top-search" aria-label="Ara">
             <SearchIcon />
           </Link>
-          <RefreshButton />
           <Link href="/ayarlar" className="top-search" aria-label="Ayarlar">
             <GearIcon />
           </Link>
