@@ -47,7 +47,9 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
   // Önbellekteki kayıtta alınamamış ligler varsa onları yeniden dene; yoksa o ligler ana sayfadan kaybolur
   // Küçük ligler için en fazla 2 sn beklenir (o lig bir sonraki yenilemede gelir); Süper Lig, 5 büyük lig
   // ve Avrupa kupaları ana sayfadan asla kaybolmasın diye 7 sn'ye kadar beklenir ve önce onlar istenir.
-  const retry = (i: number) => within(getTrDays(LEAGUES[i].code, from, key), MUST.has(LEAGUES[i].code) ? 7000 : 2000).then((x) => x ?? null);
+  // Yeniden deneme önbelleksiz (store=false). Eskiden Vercel veri önbelleğine yazıyordu (20 sn); ESPN hata
+  // verince önbellek yenilenemiyor ve SAATLERCE eski kayıt gösteriliyordu (biten maç "14' canlı 0-0" kalıyordu).
+  const retry = (i: number) => within(getTrDays(LEAGUES[i].code, from, key, false), MUST.has(LEAGUES[i].code) ? 7000 : 2000).then((x) => x ?? null);
   const results: (Match[] | null)[] = [...cached];
   // Hiçbir lig gelmediyse ESPN şu an cevap vermiyor: 28 ligi hemen yeniden istemek ESPN'i daha da
   // zorlar (istek sınırı) ve sayfayı 7 sn bekletir. O durumda yeniden deneme yapılmaz.
