@@ -723,3 +723,14 @@ a.search-row:hover { background: var(--surface-2); }
 .notif-prompt span { flex: 1; }
 .notif-prompt .np-on { background: var(--accent); color: #0e1013; border: 0; border-radius: 10px; padding: 7px 14px; font-weight: 800; font-size: 13px; }
 .notif-prompt .np-x { background: none; border: 0; color: var(--muted); font-size: 16px; padding: 4px; }
+
+/* Aşağı çekip yenileme göstergesi */
+.ptr {
+  position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 44px); z-index: 30;
+  width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--surface-2, #1c1f24); color: var(--muted); border: 1px solid var(--line);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45); pointer-events: none;
+}
+.ptr.ready, .ptr.spin { color: var(--accent); }
+.ptr.spin svg { animation: ptr-spin 0.8s linear infinite; }
+@keyframes ptr-spin { to { transform: rotate(360deg); } }
