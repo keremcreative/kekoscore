@@ -34,8 +34,16 @@ export const LEAGUES: League[] = [
   ...block(1, "Milli takımlar", [
     ["fifa.world", "Dünya Kupası", "FIFA", "🌍"],
     ["uefa.euro", "Avrupa Şampiyonası", "UEFA", "🇪🇺"],
+    // Milli maç arası (Eylül, Ekim, Kasım, Mart, Haziran) müsabakaları. Maç yokken ana sayfada görünmezler.
+    ["uefa.nations", "Uluslar Ligi", "UEFA", "🇪🇺"],
+    ["fifa.worldq.uefa", "Dünya Kupası Elemeleri", "UEFA", "🇪🇺"],
+    ["uefa.euroq", "EURO Elemeleri", "UEFA", "🇪🇺"],
     ["conmebol.america", "Copa América", "CONMEBOL", "🌎"],
     ["caf.nations", "Afrika Uluslar Kupası", "CAF", "🌍"],
+    ["fifa.friendly", "Milli Hazırlık Maçları", "FIFA", "🌍"],
+    ["fifa.worldq.conmebol", "Dünya Kupası Elemeleri", "CONMEBOL", "🌎"],
+    ["caf.nations_qual", "Afrika Uluslar Kupası Elemeleri", "CAF", "🌍"],
+    ["concacaf.nations.league", "CONCACAF Uluslar Ligi", "CONCACAF", "🌎"],
   ]),
   ...block(1, "Dünya", [
     ["conmebol.libertadores", "Copa Libertadores", "Güney Amerika", "🌎"],
