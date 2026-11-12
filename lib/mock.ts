@@ -16,6 +16,8 @@ const TEAMS: Record<string, Team[]> = {
   ],
   "eng.1": [T("11", "Arsenal", "ARS"), T("12", "Liverpool", "LIV"), T("13", "Manchester City", "MCI"), T("14", "Chelsea", "CHE")],
   "esp.1": [T("21", "Real Madrid", "RMA"), T("22", "Barcelona", "BAR"), T("23", "Atlético Madrid", "ATM"), T("24", "Sevilla", "SEV")],
+  "uefa.nations": [T("465", "Turkey", "TUR"), T("478", "Spain", "ESP"), T("481", "Germany", "GER"), T("478b", "Wales", "WAL")],
+  "fifa.friendly": [T("205", "Brazil", "BRA"), T("202", "Argentina", "ARG"), T("660", "USA", "USA"), T("203", "Mexico", "MEX")],
 };
 
 function rng(s: string) {
