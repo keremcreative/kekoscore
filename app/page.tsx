@@ -117,13 +117,14 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ d
 
   return (
     <>
-      <AutoRefresh active={anyLive} />
+      {/* ESPN o an hiç cevap vermediyse sayfa 10 sn sonra kendini yeniden dener */}
+      <AutoRefresh active={anyLive || failed === LEAGUES.length} seconds={failed === LEAGUES.length ? 10 : 30} />
       {isToday && <LiveHero items={featured.slice(0, 10)} logos={logos} />}
       <Link href="/ara" className="search-box">
         <SearchIcon /> Takım, lig veya ülke ara
       </Link>
       <DateNav selected={date} filter={filter} />
-      {failed === LEAGUES.length && <p className="notice error">Veri kaynağına ulaşılamadı. İnternet bağlantını kontrol et.</p>}
+      {failed === LEAGUES.length && <p className="notice error">Skorlar şu an alınamadı, birkaç saniye içinde yeniden denenecek.</p>}
       {sections.length === 0 && failed < LEAGUES.length && (
         <p className="empty">{filter === "canli" ? "Şu an canlı maç yok." : filter === "biten" ? "Henüz biten maç yok." : "Bu tarihte maç yok."}</p>
       )}

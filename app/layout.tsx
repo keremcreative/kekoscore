@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { TabBar } from "@/components/TabBar";
 import { ServiceWorker } from "@/components/ServiceWorker";
+import { PullToRefresh } from "@/components/PullToRefresh";
 import { Ticker } from "@/components/Ticker";
 import { TzSwitch } from "@/components/TzSwitch";
 import { SearchIcon } from "@/components/SearchBox";
@@ -48,6 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </Suspense>
         <main className="wrap">{children}</main>
         <ServiceWorker />
+        <PullToRefresh />
         <NotifPrompt />
         {/* Ziyaretçi sayısı (Vercel Web Analytics): çerezsiz, kişiyi tanımaz */}
         <Analytics />
