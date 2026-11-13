@@ -1,4 +1,4 @@
-import { CHANNELS, channelsFor, feed, findHighlights, searchChannel, searchDebug } from "@/lib/highlights";
+import { CHANNELS, channelsFor, feed, findHighlights, matchQuery, resolveChannel, searchDebug, searchYouTube } from "@/lib/highlights";
 import { getMatch } from "@/lib/data";
 import { memo } from "@/lib/memo";
 
@@ -13,12 +13,10 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
   const lig = q.get("lig");
   const mac = q.get("mac");
-  const ham = q.get("ham");
-  if (ham) {
-    // ?ham=<kanal kimliği ya da @kullanıcı>&q=<sorgu>: arama sayfasının ham yapısı
-    const kanal = ham.startsWith("@") || ham.startsWith("UC") ? ham : CHANNELS[ham as keyof typeof CHANNELS]?.id;
-    if (!kanal) return Response.json({ error: "bilinmeyen kanal" }, { status: 400 });
-    const r = await memo(`ozet-ham:${kanal}:${q.get("q")}`, 60_000, () => searchDebug(kanal, q.get("q") ?? "highlights").catch((e) => ({ hata: String(e.message) })));
+    const ara = q.get("ara");
+  if (ara) {
+    // ?ara=<sorgu>: YouTube aramasının ham yapısı ve sonuçları (kanal kimlikleriyle)
+    const r = await memo(`ozet-ara:${ara}`, 60_000, () => searchDebug(ara).catch((e) => ({ hata: String(e.message) })));
     return Response.json(r);
   }
   const chans = lig ? channelsFor(lig) : Object.values(CHANNELS);
@@ -37,17 +35,15 @@ export async function GET(req: Request) {
     if (lig && mac) {
       try {
         const m = await getMatch(lig, mac);
-        const query = `${m.home.team.short || m.home.team.name} ${m.away.team.short || m.away.team.name}`;
-        const arama = await Promise.all(
-          chans.map(async (c) => {
-            try {
-              const r = await searchChannel(c.id, query);
-              return { kanal: c.name, sorgu: query, sonuc: r.slice(0, 6).map((x) => `${x.published.slice(0, 10)} ${x.title}`) };
-            } catch (err) {
-              return { kanal: c.name, sorgu: query, hata: String((err as Error).message) };
-            }
-          }),
-        );
+        const query = `${matchQuery(m)} highlights`;
+        const ids = await Promise.all(chans.map((c) => resolveChannel(c.id).catch((e) => `hata: ${e.message}`)));
+        let arama: unknown;
+        try {
+          const r = await searchYouTube(query);
+          arama = { sorgu: query, kanalKimlikleri: chans.map((c, i) => `${c.name}: ${ids[i]}`), sonuc: r.slice(0, 10).map((x) => `${x.published.slice(0, 10)} ${x.channelId ?? "?"} ${x.title}`) };
+        } catch (err) {
+          arama = { sorgu: query, hata: String((err as Error).message) };
+        }
         eslesme = { mac: `${m.home.team.name} - ${m.away.team.name}`, tarih: m.date, durum: m.state, ...(await findHighlights(lig, m)), arama };
       } catch (err) {
         eslesme = { hata: String((err as Error).message) };
