@@ -733,3 +733,17 @@ button.top-search:disabled { opacity: 1; color: var(--accent); }
 .top-refresh.spin svg { animation: refresh-spin 0.8s linear infinite; }
 @keyframes refresh-spin { to { transform: rotate(360deg); } }
 .err-why { display: block; margin-top: 6px; font-size: 12px; color: var(--muted); }
+
+/* Maç özeti videosu */
+.hl-frame { position: relative; aspect-ratio: 16 / 9; background: #000; }
+.hl-frame iframe, .hl-thumb { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+.hl-thumb { padding: 0; background: #000; cursor: pointer; }
+.hl-thumb img { width: 100%; height: 100%; object-fit: cover; opacity: 0.85; }
+.hl-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 56px; height: 56px; border-radius: 50%; background: var(--accent); color: #111; display: grid; place-items: center; font-size: 20px; padding-left: 3px; box-shadow: 0 4px 16px rgba(0,0,0,.4); }
+.hl-meta { padding: 8px 12px 10px; display: grid; gap: 3px; }
+.hl-title { font-size: 13px; font-weight: 600; line-height: 1.3; }
+.hl-sub { font-size: 12px; color: var(--muted); }
+.hl-sub a { color: var(--accent); }
+.hl-switch { display: flex; gap: 6px; padding: 0 12px 10px; }
+.hl-switch button { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); }
+.hl-switch button.on { border-color: var(--accent); color: var(--text); }

@@ -1,5 +1,7 @@
 import { initTz } from "@/lib/tz";
 import Link from "next/link";
+import { Suspense } from "react";
+import { MatchHighlights } from "@/components/MatchHighlights";
 import { AutoRefresh } from "@/components/AutoRefresh";
 import { MatchRow } from "@/components/MatchRow";
 import { Poll } from "@/components/social/Poll";
@@ -104,6 +106,11 @@ export default async function MatchPage({
 
       {tab === "ozet" && (
         <>
+          {m.state === "post" && (
+            <Suspense fallback={null}>
+              <MatchHighlights league={code} m={m} />
+            </Suspense>
+          )}
           <BestPlayer m={m} />
           {(m.momentum.length > 0 || (live && m.plays.length > 0)) && (
             <section className="card">
