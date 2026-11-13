@@ -1,4 +1,4 @@
-import { CHANNELS, channelsFor, feed, findHighlights, searchChannel } from "@/lib/highlights";
+import { CHANNELS, channelsFor, feed, findHighlights, searchChannel, searchDebug } from "@/lib/highlights";
 import { getMatch } from "@/lib/data";
 import { memo } from "@/lib/memo";
 
@@ -13,6 +13,14 @@ export async function GET(req: Request) {
   const q = new URL(req.url).searchParams;
   const lig = q.get("lig");
   const mac = q.get("mac");
+  const ham = q.get("ham");
+  if (ham) {
+    // ?ham=<kanal kimliği ya da @kullanıcı>&q=<sorgu>: arama sayfasının ham yapısı
+    const kanal = ham.startsWith("@") || ham.startsWith("UC") ? ham : CHANNELS[ham as keyof typeof CHANNELS]?.id;
+    if (!kanal) return Response.json({ error: "bilinmeyen kanal" }, { status: 400 });
+    const r = await memo(`ozet-ham:${kanal}:${q.get("q")}`, 60_000, () => searchDebug(kanal, q.get("q") ?? "highlights").catch((e) => ({ hata: String(e.message) })));
+    return Response.json(r);
+  }
   const chans = lig ? channelsFor(lig) : Object.values(CHANNELS);
   const body = await memo(`ozet-durum:${lig}:${mac}`, 30_000, async () => {
     const feeds = await Promise.all(
