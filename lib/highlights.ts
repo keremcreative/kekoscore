@@ -66,8 +66,10 @@ export interface FeedEntry {
   title: string;
   published: string;
   short: boolean;
-  /** Kanal aramasından geldi: tarih yaklaşık ("3 days ago") */
+  /** Aramadan geldi: tarih yaklaşık ("3 days ago") */
   approx?: number;
+  /** Aramadan geldi: videoyu yükleyen kanal */
+  channelId?: string;
 }
 
 const decode = (s: string) =>
@@ -160,7 +162,8 @@ export function parseSearch(html: string, now = Date.now()): FeedEntry[] {
     }
     seen.add(videoId);
     const unit = UNIT[ago[2]];
-    out.push({ videoId, title, published: new Date(now - +ago[1] * unit).toISOString(), short: chunk.includes("/shorts/"), approx: unit });
+    const channelId = chunk.match(/"browseId":"(UC[\w-]{22})"/)?.[1];
+    out.push({ videoId, title, published: new Date(now - +ago[1] * unit).toISOString(), short: chunk.includes("/shorts/"), approx: unit, channelId });
   }
   return out;
 }
@@ -171,33 +174,41 @@ const BROWSER_HEADERS = {
   "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
 };
 
-async function searchHtml(idOrHandle: string, query: string): Promise<string> {
-  const channelId = await resolveChannel(idOrHandle);
-  const res = await fetch(`https://www.youtube.com/channel/${channelId}/search?hl=en&gl=US&query=${encodeURIComponent(query)}`, {
+/**
+ * YouTube'un kendi sitesinin kullandığı arama ucu (youtubei, anahtarsız). Kanal sayfasındaki arama
+ * sonuçları artık sayfayla gelmiyor; genel arama yapılıp sonuçlar resmi kanallara göre süzülür.
+ */
+async function innertube(query: string): Promise<unknown> {
+  const res = await fetch("https://www.youtube.com/youtubei/v1/search?prettyPrint=false", {
+    method: "POST",
     cache: "no-store",
     signal: AbortSignal.timeout(6000),
-    headers: BROWSER_HEADERS,
+    headers: { ...BROWSER_HEADERS, "content-type": "application/json", origin: "https://www.youtube.com" },
+    body: JSON.stringify({
+      context: { client: { clientName: "WEB", clientVersion: "2.20251101.00.00", hl: "en", gl: "US" } },
+      query,
+      params: "EgIQAQ%3D%3D", // yalnızca videolar
+    }),
   });
   if (!res.ok) throw new Error(`YouTube arama ${res.status}`);
-  return res.text();
+  return res.json();
 }
 
-export function searchChannel(idOrHandle: string, query: string): Promise<FeedEntry[]> {
-  return memo(`yts:${idOrHandle}:${query}`, 30 * 60e3, async () => parseSearch(await searchHtml(idOrHandle, query)));
+export function searchYouTube(query: string): Promise<FeedEntry[]> {
+  return memo(`yts:${query}`, 30 * 60e3, async () => parseSearch(JSON.stringify(await innertube(query))));
 }
 
-/** Teşhis: arama sayfası ne döndü (yapı değişirse buradan görülür) */
-export async function searchDebug(idOrHandle: string, query: string) {
-  const html = await searchHtml(idOrHandle, query);
-  const count = (k: string) => html.split(k).length - 1;
-  const i = html.search(/"(?:videoId|contentId)":"/);
+/** Teşhis: arama ne döndü (yapı değişirse buradan görülür) */
+export async function searchDebug(query: string) {
+  const raw = JSON.stringify(await innertube(query));
+  const count = (k: string) => raw.split(k).length - 1;
+  const i = raw.search(/"(?:videoId|contentId)":"/);
   return {
-    uzunluk: html.length,
-    baslik: html.match(/<title>([^<]*)<\/title>/)?.[1],
+    uzunluk: raw.length,
     videoRenderer: count('"videoRenderer"'),
     lockupViewModel: count('"lockupViewModel"'),
-    videoId: count('"videoId"'),
-    ornek: i >= 0 ? html.slice(Math.max(0, i - 300), i + 1500) : null,
+    sonuc: parseSearch(raw).slice(0, 10).map((e) => `${e.published.slice(0, 10)} ${e.channelId ?? "?"} ${e.title}`),
+    ornek: i >= 0 ? raw.slice(Math.max(0, i - 200), i + 1200) : raw.slice(0, 1200),
   };
 }
 
@@ -298,34 +309,49 @@ export function scoreEntry(e: FeedEntry, m: Pick<MatchDetail, "date" | "home" | 
   return s;
 }
 
+export const matchQuery = (m: Pick<MatchDetail, "home" | "away">) =>
+  `${m.home.team.short || m.home.team.name} ${m.away.team.short || m.away.team.name}`;
+
 export async function findHighlights(league: string, m: Pick<MatchDetail, "date" | "home" | "away">): Promise<{ found: Highlight[]; complete: boolean }> {
   const home = aliases(m.home.team);
   const away = aliases(m.away.team);
   const chans = channelsFor(league);
-  const results = await Promise.all(
-    chans.map(async (ch) => {
-      const pick = (entries: FeedEntry[]) => {
-        let best: { e: FeedEntry; s: number } | undefined;
-        for (const e of entries) {
-          const s = scoreEntry(e, m, home, away);
-          if (s > 0 && (!best || s > best.s)) best = { e, s };
-        }
-        return best;
-      };
-      const entries = await feed(ch.id).catch(() => null);
-      let best = entries ? pick(entries) : undefined;
-      // RSS yalnızca son 15 video: bulunamadıysa kanalın kendi aramasına bak (maç birkaç gün önceyse)
-      let searched: FeedEntry[] | null = null;
-      if (!best) {
-        searched = await searchChannel(ch.id, `${m.home.team.short || m.home.team.name} ${m.away.team.short || m.away.team.name}`).catch(() => null);
-        if (searched) best = pick(searched);
-      }
-      if (!entries && !searched) return { ok: false, best: undefined };
-      return { ok: true, best: best && { videoId: best.e.videoId, title: best.e.title, channel: ch.name, published: best.e.published } };
-    }),
-  );
-  const found = results.flatMap((r) => (r.best ? [r.best] : []));
-  return { found, complete: results.every((r) => r.ok && r.best) };
+  const pick = (entries: FeedEntry[]) => {
+    let best: { e: FeedEntry; s: number } | undefined;
+    for (const e of entries) {
+      const s = scoreEntry(e, m, home, away);
+      if (s > 0 && (!best || s > best.s)) best = { e, s };
+    }
+    return best?.e;
+  };
+  // 1) RSS (son 15 video)
+  const rss = await Promise.all(chans.map((ch) => feed(ch.id).catch(() => null)));
+  const best: (FeedEntry | undefined)[] = rss.map((e) => (e ? pick(e) : undefined));
+  let ok = rss.map((e) => !!e);
+  // 2) Bulunamayanlar için tek bir YouTube araması, sonuçlar yalnızca o kanaldan kabul edilir
+  if (best.some((b) => !b)) {
+    // Milli maçlarda Türkçe adlarla da ara (TFF/TRT başlıkları "Türkiye - Belçika (Özet)")
+    const tr = (t: Team) => COUNTRY_TR[norm(t.name).trim()]?.[0];
+    const trQ = tr(m.home.team) || tr(m.away.team) ? `${tr(m.home.team) ?? m.home.team.name} ${tr(m.away.team) ?? m.away.team.name} özet` : null;
+    const [results, ids] = await Promise.all([
+      Promise.all([`${matchQuery(m)} highlights`, ...(trQ ? [trQ] : [])].map((q) => searchYouTube(q).catch(() => null))).then((rs) =>
+        rs.some(Boolean) ? rs.flatMap((r) => r ?? []) : null,
+      ),
+      Promise.all(chans.map((ch) => resolveChannel(ch.id).catch(() => null))),
+    ]);
+    if (results) {
+      chans.forEach((_, i) => {
+        if (best[i] || !ids[i]) return;
+        best[i] = pick(results.filter((r) => r.channelId === ids[i]));
+      });
+      ok = ok.map((v, i) => v || !!ids[i]);
+    }
+  }
+  const found = chans.flatMap((ch, i) => {
+    const e = best[i];
+    return e ? [{ videoId: e.videoId, title: e.title, channel: ch.name, published: e.published }] : [];
+  });
+  return { found, complete: chans.every((_, i) => ok[i] && best[i]) };
 }
 
 const cached = unstable_cache(
