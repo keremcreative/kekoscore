@@ -35,8 +35,8 @@ export const CHANNELS = {
   fox: { id: "UCooTLkxcpnTNx6vfOovfBFA", name: "FOX Soccer" }, // ABD: Uluslar Ligi, elemeler
   // Türkiye: Şampiyonlar Ligi / Avrupa kupaları ve milli maç özetleri. Kimliği bilinmediği için
   // kullanıcı adından (@trtspor) sunucuda çözülür.
-  trt: { id: "@trtspor", name: "TRT SPOR" },
-  tff: { id: "@tff", name: "TFF" }, // A Milli Takım maç özetleri
+  trt: { id: "UCfYNqluOf8EbQkL44otydMw", name: "TRT SPOR" }, // @trtspor (prod'da çözüldü, akışı TRT SPOR videoları)
+  tff: { id: "UCVoNfzLtczc_TV8-xKjcmKg", name: "TFF" }, // @tff, vidiq ile doğrulandı. A Milli Takım maç özetleri
 } satisfies Record<string, Channel>;
 
 const C = CHANNELS;
@@ -363,7 +363,7 @@ const cached = unstable_cache(
     if (!found.length || (!complete && !settled)) throw new NotYet(found);
     return found;
   },
-  ["ozet-v3"],
+  ["ozet-v4"],
   { revalidate: 30 * 86400 },
 );
 
