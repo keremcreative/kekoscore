@@ -36,6 +36,7 @@ export const CHANNELS = {
   // Türkiye: Şampiyonlar Ligi / Avrupa kupaları ve milli maç özetleri. Kimliği bilinmediği için
   // kullanıcı adından (@trtspor) sunucuda çözülür.
   trt: { id: "@trtspor", name: "TRT SPOR" },
+  tff: { id: "@tff", name: "TFF" }, // A Milli Takım maç özetleri
 } satisfies Record<string, Channel>;
 
 const C = CHANNELS;
@@ -52,7 +53,7 @@ const BY_LEAGUE: Record<string, Channel[]> = {
   "uefa.europa.conf": [C.golazo, C.trt],
 };
 /** Milli takım müsabakaları: TR'de TRT, ABD'de FOX / ESPN FC yayınlıyor */
-const NATIONAL: Channel[] = [C.trt, C.fox, C.espnfc];
+const NATIONAL: Channel[] = [C.tff, C.trt, C.fox, C.espnfc];
 const NATIONAL_CODES = /^(fifa\.|uefa\.(nations|euro|euroq)$|conmebol\.america|caf\.nations|concacaf\.)/;
 
 export const channelsFor = (league: string): Channel[] =>
@@ -100,7 +101,7 @@ export function resolveChannel(idOrHandle: string): Promise<string> {
     const res = await fetch(`https://www.youtube.com/${idOrHandle}`, {
       cache: "no-store",
       signal: AbortSignal.timeout(5000),
-      headers: { "accept-language": "en-US,en;q=0.8", cookie: "CONSENT=YES+1" },
+      headers: BROWSER_HEADERS,
     });
     if (!res.ok) throw new Error(`YouTube ${res.status}`);
     const html = await res.text();
@@ -127,39 +128,77 @@ export function feed(idOrHandle: string): Promise<FeedEntry[]> {
 
 const UNIT: Record<string, number> = { second: 1e3, minute: 60e3, hour: 3600e3, day: 86400e3, week: 7 * 86400e3, month: 30 * 86400e3, year: 365 * 86400e3 };
 
-/** YouTube'un kanal arama sayfasındaki (ytInitialData) videolar. RSS'in son 15 videosundan eskiler için. */
+const STR = '"((?:[^"\\\\]|\\\\.)*)"';
+const TITLE_RES = [
+  new RegExp(`"title":\\{"runs":\\[\\{"text":${STR}`),
+  new RegExp(`"title":\\{"simpleText":${STR}`),
+  new RegExp(`"title":\\{"content":${STR}`),
+];
+const AGO_RE = /"(?:simpleText|content|text)":"(?:Streamed )?(\d+) (second|minute|hour|day|week|month|year)s? ago"/;
+
+/**
+ * YouTube'un kanal arama sayfasındaki (ytInitialData) videolar. RSS'in son 15 videosundan eskiler için.
+ * Eski (videoRenderer) ve yeni (lockupViewModel) sayfa yapısını da okur.
+ */
 export function parseSearch(html: string, now = Date.now()): FeedEntry[] {
   const out: FeedEntry[] = [];
-  const parts = html.split(/"videoRenderer":\{"videoId":"/).slice(1);
+  const seen = new Set<string>();
+  const parts = html.split(/"(?:videoRenderer|lockupViewModel|compactVideoRenderer|gridVideoRenderer)":\{/).slice(1);
   for (const part of parts) {
-    const videoId = part.slice(0, 11);
-    const chunk = part.slice(0, 6000);
-    const rawTitle = chunk.match(/"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"/)?.[1] ?? chunk.match(/"title":\{"simpleText":"((?:[^"\\]|\\.)*)"/)?.[1];
-    const ago = chunk.match(/"publishedTimeText":\{"simpleText":"(?:Streamed )?(\d+) (second|minute|hour|day|week|month|year)s? ago"/);
-    if (!/^[\w-]{11}$/.test(videoId) || !rawTitle || !ago) continue;
+    const chunk = part.slice(0, 8000);
+    const videoId = chunk.match(/"(?:videoId|contentId)":"([\w-]{11})"/)?.[1];
+    if (!videoId || seen.has(videoId)) continue;
+    if (/"contentType":"LOCKUP_CONTENT_TYPE_(?!VIDEO)/.test(chunk)) continue; // oynatma listesi vb.
+    const rawTitle = TITLE_RES.map((r) => chunk.match(r)?.[1]).find(Boolean);
+    const ago = chunk.match(AGO_RE);
+    if (!rawTitle || !ago) continue;
     let title: string;
     try {
       title = JSON.parse(`"${rawTitle}"`);
     } catch {
       continue;
     }
+    seen.add(videoId);
     const unit = UNIT[ago[2]];
-    out.push({ videoId, title, published: new Date(now - +ago[1] * unit).toISOString(), short: false, approx: unit });
+    out.push({ videoId, title, published: new Date(now - +ago[1] * unit).toISOString(), short: chunk.includes("/shorts/"), approx: unit });
   }
   return out;
 }
 
-export function searchChannel(idOrHandle: string, query: string): Promise<FeedEntry[]> {
-  return memo(`yts:${idOrHandle}:${query}`, 30 * 60e3, async () => {
-    const channelId = await resolveChannel(idOrHandle);
-    const res = await fetch(`https://www.youtube.com/channel/${channelId}/search?hl=en&gl=US&query=${encodeURIComponent(query)}`, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(6000),
-      headers: { "accept-language": "en-US,en;q=0.8", cookie: "CONSENT=YES+1" },
-    });
-    if (!res.ok) throw new Error(`YouTube arama ${res.status}`);
-    return parseSearch(await res.text());
+const BROWSER_HEADERS = {
+  "accept-language": "en-US,en;q=0.8",
+  cookie: "CONSENT=YES+1; SOCS=CAI",
+  "user-agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36",
+};
+
+async function searchHtml(idOrHandle: string, query: string): Promise<string> {
+  const channelId = await resolveChannel(idOrHandle);
+  const res = await fetch(`https://www.youtube.com/channel/${channelId}/search?hl=en&gl=US&query=${encodeURIComponent(query)}`, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(6000),
+    headers: BROWSER_HEADERS,
   });
+  if (!res.ok) throw new Error(`YouTube arama ${res.status}`);
+  return res.text();
+}
+
+export function searchChannel(idOrHandle: string, query: string): Promise<FeedEntry[]> {
+  return memo(`yts:${idOrHandle}:${query}`, 30 * 60e3, async () => parseSearch(await searchHtml(idOrHandle, query)));
+}
+
+/** Teşhis: arama sayfası ne döndü (yapı değişirse buradan görülür) */
+export async function searchDebug(idOrHandle: string, query: string) {
+  const html = await searchHtml(idOrHandle, query);
+  const count = (k: string) => html.split(k).length - 1;
+  const i = html.search(/"(?:videoId|contentId)":"/);
+  return {
+    uzunluk: html.length,
+    baslik: html.match(/<title>([^<]*)<\/title>/)?.[1],
+    videoRenderer: count('"videoRenderer"'),
+    lockupViewModel: count('"lockupViewModel"'),
+    videoId: count('"videoId"'),
+    ornek: i >= 0 ? html.slice(Math.max(0, i - 300), i + 1500) : null,
+  };
 }
 
 // ---- Eşleştirme ----
@@ -298,7 +337,7 @@ const cached = unstable_cache(
     if (!found.length || (!complete && !settled)) throw new NotYet(found);
     return found;
   },
-  ["ozet-v2"],
+  ["ozet-v3"],
   { revalidate: 30 * 86400 },
 );
 
@@ -316,4 +355,5 @@ export function matchHighlights(league: string, m: MatchDetail): Promise<Highlig
   return memo(`ozet:${league}:${m.id}`, 5 * 60e3, () =>
     cached(league, m.id, m.date, m.home.team, m.away.team).catch((e) => (e instanceof NotYet ? e.found : [])),
   ).then((v) => v.slice(0, 3));
+// Not: en fazla 3 gösterilir; milli maçta Türkiye oynamıyorsa TFF zaten eşleşmez.
 }
