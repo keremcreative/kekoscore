@@ -1,4 +1,4 @@
-import { CHANNELS, channelsFor, feed, findHighlights } from "@/lib/highlights";
+import { CHANNELS, channelsFor, feed, findHighlights, searchChannel } from "@/lib/highlights";
 import { getMatch } from "@/lib/data";
 import { memo } from "@/lib/memo";
 
@@ -29,7 +29,18 @@ export async function GET(req: Request) {
     if (lig && mac) {
       try {
         const m = await getMatch(lig, mac);
-        eslesme = { mac: `${m.home.team.name} - ${m.away.team.name}`, tarih: m.date, durum: m.state, ...(await findHighlights(lig, m)) };
+        const query = `${m.home.team.short || m.home.team.name} ${m.away.team.short || m.away.team.name}`;
+        const arama = await Promise.all(
+          chans.map(async (c) => {
+            try {
+              const r = await searchChannel(c.id, query);
+              return { kanal: c.name, sorgu: query, sonuc: r.slice(0, 6).map((x) => `${x.published.slice(0, 10)} ${x.title}`) };
+            } catch (err) {
+              return { kanal: c.name, sorgu: query, hata: String((err as Error).message) };
+            }
+          }),
+        );
+        eslesme = { mac: `${m.home.team.name} - ${m.away.team.name}`, tarih: m.date, durum: m.state, ...(await findHighlights(lig, m)), arama };
       } catch (err) {
         eslesme = { hata: String((err as Error).message) };
       }
