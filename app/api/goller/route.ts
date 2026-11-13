@@ -100,12 +100,13 @@ async function run(req: Request) {
     const mins = (new Date(m.date).getTime() - t) / 60e3;
 
     // 1) 30 dk kala hatırlatma: büyük kulüpler + favori takımlar
-    if (m.state === "pre" && mins > 0 && mins <= REMIND_MIN + 1 && !/postp|ertel|cancel|iptal/i.test(m.detail)) {
+    // Pencere 30,5 dk: dakikada bir çalıştığı için ilk gördüğü an 30 dk kala (eskiden 31 dk yazıyordu)
+    if (m.state === "pre" && mins > 0 && mins <= REMIND_MIN + 0.5 && !/postp|ertel|cancel|iptal/i.test(m.detail)) {
       const users = new Set(fansHere);
       if (big === "tr") bigTr.forEach((u) => users.add(u));
       if (big === "eu") bigEu.forEach((u) => users.add(u));
       if (users.size) {
-        const left = Math.max(1, Math.round(mins));
+        const left = Math.min(REMIND_MIN, Math.max(1, Math.round(mins)));
         jobs.push({
           key: `hat-${m.id}`,
           users,
