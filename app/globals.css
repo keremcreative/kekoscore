@@ -744,6 +744,6 @@ button.top-search:disabled { opacity: 1; color: var(--accent); }
 .hl-title { font-size: 13px; font-weight: 600; line-height: 1.3; }
 .hl-sub { font-size: 12px; color: var(--muted); }
 .hl-sub a { color: var(--accent); }
-.hl-switch { display: flex; gap: 6px; padding: 0 12px 10px; }
+.hl-switch { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 10px; }
 .hl-switch button { font: inherit; font-size: 12px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--muted); }
 .hl-switch button.on { border-color: var(--accent); color: var(--text); }

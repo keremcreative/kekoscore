@@ -32,6 +32,10 @@ export const CHANNELS = {
   ligue1: { id: "UCQsH5XtIc9hONE1BQjucM0g", name: "Ligue 1" },
   golazo: { id: "UCET00YnetHT7tOpu12v8jxg", name: "CBS Sports Golazo" },
   espnfc: { id: "UC6c1z7bA__85CIWZ_jpCK-Q", name: "ESPN FC" },
+  fox: { id: "UCooTLkxcpnTNx6vfOovfBFA", name: "FOX Soccer" }, // ABD: Uluslar Ligi, elemeler
+  // Türkiye: Şampiyonlar Ligi / Avrupa kupaları ve milli maç özetleri. Kimliği bilinmediği için
+  // kullanıcı adından (@trtspor) sunucuda çözülür.
+  trt: { id: "@trtspor", name: "TRT SPOR" },
 } satisfies Record<string, Channel>;
 
 const C = CHANNELS;
@@ -43,12 +47,16 @@ const BY_LEAGUE: Record<string, Channel[]> = {
   "ita.1": [C.seriea, C.golazo],
   "ger.1": [C.bundesliga, C.espnfc],
   "fra.1": [C.ligue1],
-  "uefa.champions": [C.golazo],
-  "uefa.europa": [C.golazo],
-  "uefa.europa.conf": [C.golazo],
+  "uefa.champions": [C.golazo, C.trt],
+  "uefa.europa": [C.golazo, C.trt],
+  "uefa.europa.conf": [C.golazo, C.trt],
 };
+/** Milli takım müsabakaları: TR'de TRT, ABD'de FOX / ESPN FC yayınlıyor */
+const NATIONAL: Channel[] = [C.trt, C.fox, C.espnfc];
+const NATIONAL_CODES = /^(fifa\.|uefa\.(nations|euro|euroq)$|conmebol\.america|caf\.nations|concacaf\.)/;
 
-export const channelsFor = (league: string): Channel[] => BY_LEAGUE[league] ?? [C.espnfc];
+export const channelsFor = (league: string): Channel[] =>
+  BY_LEAGUE[league] ?? (NATIONAL_CODES.test(league) ? NATIONAL : [C.espnfc]);
 
 // ---- RSS ----
 
@@ -57,6 +65,8 @@ export interface FeedEntry {
   title: string;
   published: string;
   short: boolean;
+  /** Kanal aramasından geldi: tarih yaklaşık ("3 days ago") */
+  approx?: number;
 }
 
 const decode = (s: string) =>
@@ -83,14 +93,72 @@ export function parseFeed(xml: string): FeedEntry[] {
   return out;
 }
 
-export function feed(channelId: string): Promise<FeedEntry[]> {
-  return memo(`yt:${channelId}`, 10 * 60e3, async () => {
+/** "@kullanici" → UC… kanal kimliği (kanal sayfasından, sunucu belleğinde 1 gün) */
+export function resolveChannel(idOrHandle: string): Promise<string> {
+  if (!idOrHandle.startsWith("@")) return Promise.resolve(idOrHandle);
+  return memo(`yth:${idOrHandle}`, 86400e3, async () => {
+    const res = await fetch(`https://www.youtube.com/${idOrHandle}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(5000),
+      headers: { "accept-language": "en-US,en;q=0.8", cookie: "CONSENT=YES+1" },
+    });
+    if (!res.ok) throw new Error(`YouTube ${res.status}`);
+    const html = await res.text();
+    const id =
+      html.match(/<link rel="canonical" href="https:\/\/www\.youtube\.com\/channel\/(UC[\w-]{22})"/)?.[1] ??
+      html.match(/"externalId":"(UC[\w-]{22})"/)?.[1] ??
+      html.match(/"browseId":"(UC[\w-]{22})"/)?.[1];
+    if (!id) throw new Error("kanal kimliği bulunamadı");
+    return id;
+  });
+}
+
+export function feed(idOrHandle: string): Promise<FeedEntry[]> {
+  return memo(`yt:${idOrHandle}`, 10 * 60e3, async () => {
+    const channelId = await resolveChannel(idOrHandle);
     const res = await fetch(`https://www.youtube.com/feeds/videos.xml?channel_id=${channelId}`, {
       cache: "no-store", // Vercel önbelleğine yazma (kota)
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) throw new Error(`YouTube ${res.status}`);
     return parseFeed(await res.text());
+  });
+}
+
+const UNIT: Record<string, number> = { second: 1e3, minute: 60e3, hour: 3600e3, day: 86400e3, week: 7 * 86400e3, month: 30 * 86400e3, year: 365 * 86400e3 };
+
+/** YouTube'un kanal arama sayfasındaki (ytInitialData) videolar. RSS'in son 15 videosundan eskiler için. */
+export function parseSearch(html: string, now = Date.now()): FeedEntry[] {
+  const out: FeedEntry[] = [];
+  const parts = html.split(/"videoRenderer":\{"videoId":"/).slice(1);
+  for (const part of parts) {
+    const videoId = part.slice(0, 11);
+    const chunk = part.slice(0, 6000);
+    const rawTitle = chunk.match(/"title":\{"runs":\[\{"text":"((?:[^"\\]|\\.)*)"/)?.[1] ?? chunk.match(/"title":\{"simpleText":"((?:[^"\\]|\\.)*)"/)?.[1];
+    const ago = chunk.match(/"publishedTimeText":\{"simpleText":"(?:Streamed )?(\d+) (second|minute|hour|day|week|month|year)s? ago"/);
+    if (!/^[\w-]{11}$/.test(videoId) || !rawTitle || !ago) continue;
+    let title: string;
+    try {
+      title = JSON.parse(`"${rawTitle}"`);
+    } catch {
+      continue;
+    }
+    const unit = UNIT[ago[2]];
+    out.push({ videoId, title, published: new Date(now - +ago[1] * unit).toISOString(), short: false, approx: unit });
+  }
+  return out;
+}
+
+export function searchChannel(idOrHandle: string, query: string): Promise<FeedEntry[]> {
+  return memo(`yts:${idOrHandle}:${query}`, 30 * 60e3, async () => {
+    const channelId = await resolveChannel(idOrHandle);
+    const res = await fetch(`https://www.youtube.com/channel/${channelId}/search?hl=en&gl=US&query=${encodeURIComponent(query)}`, {
+      cache: "no-store",
+      signal: AbortSignal.timeout(6000),
+      headers: { "accept-language": "en-US,en;q=0.8", cookie: "CONSENT=YES+1" },
+    });
+    if (!res.ok) throw new Error(`YouTube arama ${res.status}`);
+    return parseSearch(await res.text());
   });
 }
 
@@ -135,6 +203,23 @@ const ALIAS: Record<string, string[]> = {
   "olympique lyonnais": ["lyon", "ol"],
 };
 
+// Milli takımlar: ESPN İngilizce ad verir, TRT başlıkları Türkçe ("Türkiye - Belçika (Özet)")
+const COUNTRY_TR: Record<string, string[]> = {
+  turkiye: ["turkey", "turkiye"], turkey: ["turkiye"], belgium: ["belcika"], germany: ["almanya"], spain: ["ispanya"],
+  italy: ["italya"], france: ["fransa"], england: ["ingiltere"], netherlands: ["hollanda"], portugal: ["portekiz"],
+  croatia: ["hirvatistan"], czechia: ["cekya", "czech republic"], "czech republic": ["cekya", "czechia"], albania: ["arnavutluk"],
+  finland: ["finlandiya"], cyprus: ["kibris", "guney kibris"], armenia: ["ermenistan"], latvia: ["letonya"], montenegro: ["karadag"],
+  scotland: ["iskocya"], wales: ["galler"], switzerland: ["isvicre"], austria: ["avusturya"], poland: ["polonya"],
+  denmark: ["danimarka"], sweden: ["isvec"], norway: ["norvec"], greece: ["yunanistan"], serbia: ["sirbistan"],
+  hungary: ["macaristan"], romania: ["romanya"], ukraine: ["ukrayna"], georgia: ["gurcistan"], iceland: ["izlanda"],
+  "republic of ireland": ["irlanda", "ireland"], ireland: ["irlanda"], "northern ireland": ["kuzey irlanda"], slovakia: ["slovakya"],
+  slovenia: ["slovenya"], bulgaria: ["bulgaristan"], "bosnia and herzegovina": ["bosna hersek", "bosnia"], "bosnia herzegovina": ["bosna hersek", "bosnia"],
+  "north macedonia": ["kuzey makedonya"], kosovo: ["kosova"], israel: ["israil"], estonia: ["estonya"], lithuania: ["litvanya"],
+  luxembourg: ["luksemburg"], moldova: ["moldova"], azerbaijan: ["azerbaycan"], kazakhstan: ["kazakistan"], russia: ["rusya"],
+  brazil: ["brezilya"], argentina: ["arjantin"], colombia: ["kolombiya"], mexico: ["meksika"], "united states": ["abd", "usa", "usmnt"],
+  usa: ["abd", "united states", "usmnt"], japan: ["japonya"], morocco: ["fas"], egypt: ["misir"], "south korea": ["guney kore", "korea republic"],
+};
+
 export function aliases(t: Team): string[] {
   const set = new Set<string>();
   for (const raw of [t.name, t.short]) {
@@ -144,6 +229,7 @@ export function aliases(t: Team): string[] {
     const stripped = n.split(" ").filter((w) => !AFFIX.has(w)).join(" ");
     if (stripped) set.add(stripped);
     for (const a of ALIAS[n] ?? ALIAS[stripped] ?? []) set.add(a);
+    for (const a of COUNTRY_TR[n] ?? []) set.add(a);
     const longest = stripped.split(" ").filter((w) => !COMMON.has(w)).sort((a, b) => b.length - a.length)[0];
     if (longest && longest.length >= 6) set.add(longest);
   }
@@ -152,7 +238,7 @@ export function aliases(t: Team): string[] {
 
 const has = (title: string, team: string[]) => team.some((a) => title.includes(` ${a} `));
 const GOOD = /\b(highlights?|ozet|ozeti|resumen|resume|sintesi|journee|extended|all goals|goals)\b/;
-const BAD = /\b(press conference|preview|build up|reaction|interview|every angle|top moment|roportaj|basin toplantisi|analysis|analiz|reacts?|prediction|tahmin|live|canli|full match|tum mac)\b/;
+const BAD = /\b(press conference|preview|build up|reaction|interview|every angle|top moment|roportaj|basin toplantisi|analysis|analiz|reacts?|prediction|tahmin|live|canli|full match|tum mac|macin tamami)\b/;
 const SCORE = / \d{1,2} \d{1,2} /; // "2-1", "(2-1)" norm sonrası " 2 1 "
 
 /** Bir videonun bu maçın özeti olma puanı; 0 ya da altı = değil. */
@@ -161,7 +247,9 @@ export function scoreEntry(e: FeedEntry, m: Pick<MatchDetail, "date" | "home" | 
   const kick = new Date(m.date).getTime();
   const pub = new Date(e.published).getTime();
   // Maç başlamadan önce yüklenenler özet değildir; 4 günden sonrakiler büyük olasılıkla başka maç
-  if (!(pub > kick + 45 * 60e3 && pub < kick + 4 * 86400e3)) return 0;
+  // approx: arama sonucunun tarihi birim kadar kayabilir ("3 days ago" = 3-4 gün önce)
+  const slack = e.approx ?? 0;
+  if (!(pub > kick + (slack ? 0 : 45 * 60e3) && pub < kick + 4 * 86400e3 + slack)) return 0;
   const t = norm(e.title);
   if (!has(t, home) || !has(t, away)) return 0;
   if (BAD.test(t)) return 0;
@@ -177,13 +265,23 @@ export async function findHighlights(league: string, m: Pick<MatchDetail, "date"
   const chans = channelsFor(league);
   const results = await Promise.all(
     chans.map(async (ch) => {
+      const pick = (entries: FeedEntry[]) => {
+        let best: { e: FeedEntry; s: number } | undefined;
+        for (const e of entries) {
+          const s = scoreEntry(e, m, home, away);
+          if (s > 0 && (!best || s > best.s)) best = { e, s };
+        }
+        return best;
+      };
       const entries = await feed(ch.id).catch(() => null);
-      if (!entries) return { ok: false, best: undefined };
-      let best: { e: FeedEntry; s: number } | undefined;
-      for (const e of entries) {
-        const s = scoreEntry(e, m, home, away);
-        if (s > 0 && (!best || s > best.s)) best = { e, s };
+      let best = entries ? pick(entries) : undefined;
+      // RSS yalnızca son 15 video: bulunamadıysa kanalın kendi aramasına bak (maç birkaç gün önceyse)
+      let searched: FeedEntry[] | null = null;
+      if (!best) {
+        searched = await searchChannel(ch.id, `${m.home.team.short || m.home.team.name} ${m.away.team.short || m.away.team.name}`).catch(() => null);
+        if (searched) best = pick(searched);
       }
+      if (!entries && !searched) return { ok: false, best: undefined };
       return { ok: true, best: best && { videoId: best.e.videoId, title: best.e.title, channel: ch.name, published: best.e.published } };
     }),
   );
@@ -200,7 +298,7 @@ const cached = unstable_cache(
     if (!found.length || (!complete && !settled)) throw new NotYet(found);
     return found;
   },
-  ["ozet-v1"],
+  ["ozet-v2"],
   { revalidate: 30 * 86400 },
 );
 
@@ -210,12 +308,12 @@ class NotYet extends Error {
   }
 }
 
-/** Biten maçın özet videoları (en fazla 2). Hata vermez; bulunamazsa boş döner. */
+/** Biten maçın özet videoları (en fazla 3). Hata vermez; bulunamazsa boş döner. */
 export function matchHighlights(league: string, m: MatchDetail): Promise<Highlight[]> {
   if (m.state !== "post") return Promise.resolve([]);
   const age = Date.now() - new Date(m.date).getTime();
-  if (age > 7 * 86400e3) return Promise.resolve([]); // RSS bu kadar geriye gitmez
+  if (age > 30 * 86400e3) return Promise.resolve([]);
   return memo(`ozet:${league}:${m.id}`, 5 * 60e3, () =>
     cached(league, m.id, m.date, m.home.team, m.away.team).catch((e) => (e instanceof NotYet ? e.found : [])),
-  ).then((v) => v.slice(0, 2));
+  ).then((v) => v.slice(0, 3));
 }
